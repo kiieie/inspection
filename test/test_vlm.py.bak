@@ -1,0 +1,11 @@
+import requests_mock
+from inspectors.vlm_inspector import VLMInspector
+
+def test_vlm_api_call():
+    with requests_mock.Mocker() as m:
+        m.post("http://thor-server/api/generate", json={"response": "Normal state"})
+        
+        inspector = VLMInspector(api_url="http://thor-server/api/generate")
+        res = inspector.inspect("img.jpg", {"inspection_point_type": "ETC_Check"})
+        
+        assert res['result'] == "Normal state"
