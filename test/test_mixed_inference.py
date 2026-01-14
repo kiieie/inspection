@@ -24,12 +24,22 @@ from utils.visualizer import (
     draw_stack_text    # 새로 추가됨
 )
 import concurrent.futures
+import time
+import json
+import uuid
+import re
+from datetime import datetime
 from loguru import logger
+from database import SessionLocal, engine, Base
+import pandas as pd
+import sys
+import importlib.util
+from pathlib import Path
 
-@pytest.fixture
-def system_setup():
-    """시스템 인스턴스를 단 한 번 생성하여 테스트 간 재사용"""
-    return DiagnosisSystem()
+import models
+from models import InspectionPoint, InspectionData, MissionResult, DiagnosisState, InspectionResult
+
+# [DB Setup] 테이블 생성은 conftest.py 또는 초기화 시 수행됨
 
 # =============================================================================
 # [Test 1] AG (Analog Gauge) 그룹핑 정밀 진단
@@ -888,3 +898,422 @@ def test_dg_gauge_vlm_inference_grouped(system_setup):
     # Cleanup
     try: os.rmdir(temp_dir)
     except: pass
+
+# =============================================================================
+# [DB Sync] Excel 데이터를 데이터베이스(InspectionPoint)로 동기화 (REDO)
+# =============================================================================
+def test_sync_excel_to_db(system_setup, db_session):
+    """
+    엑셀 파일(config.EXCEL_FILE)의 모든 데이터를 읽어 DB의 inspection_point 테이블에 저장합니다.
+    기존 데이터를 삭제하고 엑셀의 모든 컬럼(sort_key, query 등)을 완벽하게 매핑합니다.
+    """
+    logger.info("🚀 [DB SYNC - REDO] 엑셀 데이터를 DB로 전면 마이그레이션 시작")
+    
+    # 1. 엑셀 로드
+    df = system_setup.df
+    
+    # [Helper] 수치형 데이터 안전 변환 함수
+    def safe_float(val, default=0.0):
+        try:
+            if pd.isna(val): return default
+            # 텍스트가 섞여 있어도 최대한 숫자를 추출하거나, 실패 시 기본값 반환
+            if isinstance(val, str):
+                import re
+                nums = re.findall(r"[-+]?\d*\.\d+|\d+", val)
+                return float(nums[0]) if nums else default
+            return float(val)
+        except:
+            return default
+
+    try:
+        # 2. 기존 데이터 초기화
+        db_session.query(InspectionPoint).delete()
+        db_session.commit()
+        logger.info("🗑️  기존 InspectionPoint 테이블을 비웠습니다.")
+
+        # 3. 엑셀 데이터를 모델 인스턴스로 변환
+        new_points = []
+        for _, row in df.iterrows():
+            # [Full Data Mapping] 엑셀의 모든 컬럼을 모델 필드에 1:1 매핑
+            point = InspectionPoint(
+                site=str(row.get('site', 'Unknown')),
+                mission_name=str(row.get('mission_name', '')),
+                inspection_name=str(row.get('inspection_name', '')),
+                facility_1=str(row.get('facility_1', '')),
+                facility_2=str(row.get('facility_2', '')),
+                inspection_point_type=str(row.get('inspection_point_type', '')),
+                model_type=str(row.get('model_type', '')) if pd.notna(row.get('model_type')) else None,
+                model_ver=str(row.get('model_ver', '')) if pd.notna(row.get('model_ver')) else None,
+                
+                # 수치 데이터 (Safe Float 적용)
+                min_value=safe_float(row.get('min_value'), 0.0),
+                max_value=safe_float(row.get('max_value'), 100.0),
+                normal_min_value=safe_float(row.get('normal_min_value'), 0.0),
+                normal_max_value=safe_float(row.get('normal_max_value'), 100.0),
+                
+                # 필수 텍스트 정보
+                comment=str(row.get('comment', '')) if pd.notna(row.get('comment')) else None,
+                
+                # [NEW] 확장된 모델 필드 직접 매핑
+                report_name=str(row.get('report_items', '')), # [FIX] report_items -> report_name
+                inspection_details=str(row.get('inspection_details', '')),
+                inspection_period=str(row.get('inspection_period', '')),
+                insepction_cell_number=str(row.get('insepction_cell_number', '')),
+                query=str(row.get('query', '')),
+                sort_key=str(row.get('sort_key', '')),
+                
+                # 유동적 정보 (공백 컬럼 등 보존)
+                report_info={"raw_extra": str(row.get('  ', ''))}
+            )
+            
+            # hyperparameter는 엑셀에 존재할 경우 JSON으로 로드 시도
+            hp = row.get('hyperparameter')
+            if pd.notna(hp):
+                import json
+                try: 
+                    if isinstance(hp, str): point.hyperparameter = json.loads(hp)
+                    else: point.hyperparameter = hp
+                except: point.hyperparameter = {"raw": str(hp)}
+
+            new_points.append(point)
+        
+        # 4. 일괄 데이터 삽입
+        db_session.add_all(new_points)
+        db_session.commit()
+        logger.success(f"✅ REDO 완료: 엑셀의 모든 컬럼을 DB(InspectionPoint)에 1:1 매핑하여 동기화했습니다. (Total: {len(new_points)})")
+
+        # 5. 무결성 확인
+        count = db_session.query(InspectionPoint).count()
+        assert count == len(df), f"DB 데이터 수({count})가 엑셀 데이터 수({len(df)})와 일치하지 않습니다."
+
+    except Exception as e:
+        db_session.rollback()
+        logger.error(f"❌ DB REDO 중 치명적 오류 발생: {e}")
+        raise e
+
+def test_polling_inspection_workflow(system_setup, db_session):
+    """
+    [Integration Test] 2초 주기 폴링 + 정밀 점검 (test_integrated_inspection_grouped와 동일 로직)
+    """
+    import time, cv2, os, pandas as pd, numpy as np
+    from datetime import datetime
+    from collections import Counter
+    from loguru import logger
+    from utils.matching import is_type_compatible, evaluate_gauge_reading
+    from utils.visualizer import draw_diagnosis_box, draw_summary_table, draw_outline_text
+    from database import engine
+    from models import Base, InspectionData, DiagnosisState, InspectionResult
+    
+    # DB 결과 테이블 생성 보장
+    Base.metadata.create_all(bind=engine)
+    
+    logger.info("📡 [POLLING TEST] 자율 디버깅 및 로직 동기화 테스트 시작 (2026-01-13)")
+    
+    try:
+        # 테스트용 Task 생성 (battery_room 미션)
+        mock_task = InspectionData(
+            site="datacenter_daejeon", mission_name="battery_room",
+            inspection_time=datetime.utcnow(), data_raw_dir=config.BASE_DIR,
+            data_result_dir=os.path.join(os.getcwd(), "test_results"), # 워크스페이스 내 저장
+            state=DiagnosisState.QUEUED
+        )
+        db_session.add(mock_task); db_session.commit()
+        logger.info(f"🆕 테스트용 태스크 생성 (ID: {mock_task.id})")
+        
+        start_time = time.time()
+        task_processed = False
+        
+        while True:
+            task = db_session.query(InspectionData).filter(InspectionData.state == DiagnosisState.QUEUED).order_by(InspectionData.id.desc()).first()
+            if task:
+                logger.info(f"🔍 [POLLING] 태스크 발견 (ID: {task.id}). 정밀 분석 시작.")
+                task.state = DiagnosisState.RUNNING; db_session.commit()
+                
+                # 데이터 로드
+                df = pd.read_excel(config.EXCEL_FILE, sheet_name='inspection_point')
+                mission_df = df[df['mission_name'] == task.mission_name].copy()
+                mission_df['unique_key'] = mission_df['mission_name'].astype(str) + "_" + mission_df['inspection_name'].astype(str)
+                grouped_list = list(mission_df.groupby('unique_key', sort=False))
+                
+                ds = system_setup
+                idx = 0
+                while idx < len(grouped_list):
+                    key, group = grouped_list[idx]
+                    first = group.iloc[0]
+                    img_path = ds.get_latest_image(task.data_raw_dir, task.mission_name, first['inspection_name'])
+                    
+                    if not img_path or not os.path.exists(img_path): idx += 1; continue
+                    img = cv2.imread(img_path); final_img = img.copy()
+
+                    # [Step 1] AI 추론
+                    ag_dets = ds.ag_inspector.inspect_all(img_path); [d.update({'source': 'Pose'}) for d in ag_dets]
+                    dg_dets = ds.dg_inspector.inspect_all(img_path); [d.update({'source': 'OCR'}) for d in dg_dets]
+                    raw_cls_dets = ds.sw_led_inspector.get_all_detections(ds, img_path)
+                    cls_dets = [d for d in raw_cls_dets if not (d['label'].startswith('AG_') or d['label'].startswith('DG_'))]
+                    [d.update({'source': 'Cls'}) for d in cls_dets]
+                    all_detections = ag_dets + dg_dets + cls_dets
+
+                    # [Step 2] 라벨 매핑 (Logic A: Original 방식 100% 재현)
+                    expected_types = group['inspection_point_type'].unique()
+                    for det in all_detections:
+                        if "extingisher" in det['label']: det['label'] = det['label'].replace("extingisher", "extinguisher")
+                        det['used'] = False
+                        if det['label'] in expected_types: continue
+                        
+                        matched_target = None
+                        for target_type in expected_types:
+                            candidates = config.LABEL_MAP.get(target_type, [])
+                            if not isinstance(candidates, list): candidates = [candidates]
+                            for cand in candidates:
+                                if cand == det['label'] or (cand in det['label']): matched_target = target_type; break
+                            if matched_target: break
+                        if matched_target: det['label'] = matched_target
+
+                    # [Step 3] Adaptive Sort
+                    excel_rear = group[group['facility_2'].str.contains('(rear)', na=False, regex=False)]
+                    excel_front = group[~group['facility_2'].str.contains('(rear)', na=False, regex=False)]
+                    front_reqs = Counter(excel_front['inspection_point_type'])
+                    rear_reqs = Counter(excel_rear['inspection_point_type'])
+                    
+                    candidates_by_label = {}
+                    for d in [d for d in all_detections if d['label'] in expected_types]:
+                        candidates_by_label.setdefault(d['label'], []).append(d)
+                        
+                    det_front_pool, det_rear_pool = [], []
+                    for lbl, dets in candidates_by_label.items():
+                        n_f, n_r = front_reqs.get(lbl, 0), rear_reqs.get(lbl, 0)
+                        if n_r > 0: dets.sort(key=lambda d: d.get('area', 0), reverse=True)
+                        else: dets.sort(key=lambda d: d['center_x'])
+                        det_front_pool.extend(dets[:n_f])
+                        det_rear_pool.extend(dets[n_f : n_f + n_r])
+                    
+                    det_front_pool.sort(key=lambda d: d['center_x'])
+                    det_rear_pool.sort(key=lambda d: d['center_x'])
+
+                    # [Step 4] 매칭 및 상세 점검
+                    from inspectors.vlm_inspector import VLMInspector  # 2026-01-13 [NEW]: VLM 인스펙터 임포트
+                    vlm_inspector = VLMInspector()
+                    import re, uuid
+
+                    results_map = {}
+                    for depth, ex_bucket, det_bucket in [("Front", excel_front, det_front_pool), ("Rear", excel_rear, det_rear_pool)]:
+                        available_dets = list(det_bucket)
+                        for r_idx, row in ex_bucket.iterrows():
+                            target = str(row['inspection_point_type'])
+                            matched = next((d for d in available_dets if is_type_compatible(target, d['label'])), None)
+                            
+                            res = {"type": target, "found": False, "val": None, "status": "FAIL"}
+                            if matched:
+                                matched['used'] = True; available_dets.remove(matched)
+                                x1, y1, x2, y2 = map(int, matched['box'])
+                                val_display, is_ok = "Detected", True
+
+                                # [CASE A] AG (게이지)
+                                if target.startswith("AG"):
+                                    val_display, _, is_ok = evaluate_gauge_reading(matched, row)
+                                    if matched.get('source') == 'Pose' and 'keypoints' in matched:
+                                        for k_idx, kp in enumerate(matched['keypoints']):
+                                            if len(kp) >= 3 and kp[2] > 0.25:
+                                                cv2.circle(final_img, (int(kp[0]), int(kp[1])), 4, (0,0,255) if k_idx in [2,4] else (255,0,0), -1)
+                                
+                                # [CASE B] DG (디지털 게이지) - 2026-01-13 [NEW]: VLM 연동 가속화
+                                elif target.startswith("DG") or target.startswith("Class"):
+                                    logger.info(f"🔮 [VLM] {target} 항목 분석 중...")
+                                    # 객체 크롭
+                                    pad = 10
+                                    crop = img[max(0,y1-pad):min(img.shape[0],y2+pad), max(0,x1-pad):min(img.shape[1],x2+pad)]
+                                    temp_dir = os.path.join(os.getcwd(), "temp_vlm_crops")
+                                    os.makedirs(temp_dir, exist_ok=True)
+                                    crop_path = os.path.join(temp_dir, f"{uuid.uuid4().hex}.jpg")
+                                    cv2.imwrite(crop_path, crop)
+                                    
+                                    # VLM 질의 선택 로직 (2026-01-13: 중앙 프롬프트 우선)
+                                    query_text = config.VLM_PROMPTS.get(target) # 전체 일치 확인
+                                    if not query_text:
+                                        # 부분 일치 확인 (Prefix)
+                                        query_text = next((v for k, v in config.VLM_PROMPTS.items() if target.startswith(k)), None)
+                                    if not query_text:
+                                        # 엑셀 query 컬럼 fallback
+                                        query_text = row.get('query', config.VLM_PROMPTS.get("DEFAULT"))
+                                    
+                                    vlm_res = vlm_inspector.analyze(crop_path, str(query_text))
+                                    
+                                    # [분석 결과 처리]
+                                    if target.startswith("DG"):
+                                        # 숫자 추출 및 판정
+                                        try:
+                                            numbers = re.findall(r"[-+]?\d*\.\d+|\d+", vlm_res)
+                                            extracted_val = float(numbers[0]) if numbers else None
+                                        except: extracted_val = None
+                                        val_display, _, is_ok = evaluate_gauge_reading({'value': extracted_val, 'label': matched['label']}, row)
+                                    else:
+                                        # Class 계열: 텍스트 그대로 표시 및 기존 호환성 체크 병행
+                                        val_display = vlm_res.replace("\n", " ")
+                                        if hasattr(ds.sw_led_inspector, 'check_status_compliance'):
+                                            is_ok, _ = ds.sw_led_inspector.check_status_compliance(matched['label'], target)
+                                        else: is_ok = True
+                                        
+                                    if os.path.exists(crop_path): os.remove(crop_path)
+                                    
+                                    # 시각화 텍스트 (VLM 결과 오버레이)
+                                    draw_outline_text(final_img, f"VLM: {vlm_res[:30]}..", (x1, y1 - 25), (0, 255, 255), 0.6)
+                                
+                                draw_diagnosis_box(final_img, matched['box'], row, matched['label'], "PASS", val_display, is_ok)
+                                res.update({
+                                    "found": True, 
+                                    "val": val_display, 
+                                    "status": "PASS" if is_ok else "FAIL",
+                                    "vlm_query": query_text if 'vlm_res' in locals() else "N/A",
+                                    "vlm_answer": vlm_res if 'vlm_res' in locals() else "N/A",
+                                    "spatial": {
+                                        "box": matched['box'],
+                                        "area": int(matched.get('area', 0)),
+                                        "center": [int(matched.get('center_x', 0)), int(matched.get('center_y', 0))]
+                                    }
+                                })
+                                matched['used'] = True # 마킹
+                            else:
+                                # [2026-01-13] 미탐 시 기본값 설정
+                                res.update({
+                                    "found": False, 
+                                    "val": "진단결과 없음 (미탐지)", 
+                                    "status": "FAIL",
+                                    "vlm_query": "N/A",
+                                    "vlm_answer": "검출된 객체가 없어 진단을 수행하지 못했습니다.",
+                                    "spatial": {"box": None, "area": 0, "center": [0, 0]}
+                                })
+                            results_map[r_idx] = res
+
+                    # [Step 5] 통합 리포트 데이터 생성 (2026-01-13 NEW: Excel + JSON)
+                    report_rows = []
+                    json_data = {
+                        "task_id": task.id,
+                        "mission": task.mission_name,
+                        "inspection_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "results": []
+                    }
+
+                    for i, row in group.iterrows():
+                        r = results_map.get(i, {"found": False, "val": "진단결과 없음", "status": "FAIL", "spatial": {"box": None, "area": 0, "center": [0, 0]}})
+                        row_dict = {
+                            "Inspection Time": json_data["inspection_time"],
+                            "Mission": task.mission_name,
+                            "Point": str(row['inspection_name']),
+                            "Type": str(row['inspection_point_type']),
+                            "VLM Query": r.get('vlm_query', "N/A"),
+                            "VLM Answer": r.get('vlm_answer', "N/A"),
+                            "Result Value": r.get('val', "진단결과 없음"),
+                            "Judgement": r.get('status', "FAIL"),
+                            "Box": str(r['spatial']['box']),
+                            "Area": r['spatial']['area'],
+                            "Center": str(r['spatial']['center']),
+                            "Image Path": img_path
+                        }
+                        report_rows.append(row_dict)
+                        json_data["results"].append({
+                            "point_name": str(row['inspection_name']),
+                            "type": str(row['inspection_point_type']),
+                            "diagnosis": r
+                        })
+                    
+                    # 1) 실시간 엑셀 및 JSON 저장 경로 설정 (2026-01-13: test_results 폴더로 임시 통합)
+                    report_dir = os.path.join(os.getcwd(), "test_results")
+                    os.makedirs(report_dir, exist_ok=True)
+                    report_file = os.path.join(report_dir, "inspection_report_preview.xlsx")
+                    
+                    new_df = pd.DataFrame(report_rows)
+                    if os.path.exists(report_file):
+                        try:
+                            old_df = pd.read_excel(report_file)
+                            combined_df = pd.concat([old_df, new_df], ignore_index=True)
+                            combined_df.to_excel(report_file, index=False)
+                        except: new_df.to_excel(report_file, index=False)
+                    else:
+                        new_df.to_excel(report_file, index=False)
+                    
+                    # 2) JSON 파일 저장
+                    json_file = os.path.join(report_dir, f"task_{task.id}_result.json")
+                    with open(json_file, "w", encoding="utf-8") as jf:
+                        json.dump(json_data, jf, indent=4, ensure_ascii=False)
+                    
+                    logger.info(f"📊 [Report] {len(report_rows)}개 항목 기록 완료 (Excel: {os.path.basename(report_file)}, JSON: {os.path.basename(json_file)})")
+
+                    # [Step 5] 미매칭 객체(Unmatched) 표시
+                    for det in all_detections:
+                        if not det.get('used'):
+                            px1, py1, px2, py2 = map(int, det['box'])
+                            color = (0, 165, 255) if det['label'] in expected_types else (200, 200, 200)
+                            status_txt = "Unk(Cand)" if det['label'] in expected_types else "Unk"
+                            cv2.rectangle(final_img, (px1, py1), (px2, py2), color, 2)
+                            draw_outline_text(final_img, f"{status_txt}: {det['label']}", (px1, py1 - 10), color, 0.5)
+
+                    # [Step 6] 요약 및 시각화
+                    summary_list = [results_map.get(i, {"type": str(group.loc[i]['inspection_point_type']), "found": False}) for i in group.index]
+                    draw_summary_table(final_img, summary_list)
+                    
+                    # 저장 및 DB 기록 (2026-01-13: test_results 폴더 내 mission별 정리)
+                    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    save_path = os.path.join(report_dir, task.mission_name, f"{first['inspection_name']}_{ts}.jpg")
+                    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+                    cv2.imwrite(save_path, final_img)
+                    
+                    for i, row in group.iterrows():
+                        r = results_map.get(i)
+                        if r:
+                            db_session.add(InspectionResult(
+                                site=task.site, mission_name=task.mission_name, inspection_name=first['inspection_name'],
+                                inspection_datetime=datetime.utcnow(), result_str=str(r['val']),
+                                data_raw_dir=img_path, data_result_dir=save_path
+                            ))
+                    db_session.commit()
+
+                    # 2026-01-13 [NEW]: 내비게이션 기능 강화 (Q/A/D 지원)
+                    win_name = f"POLLED: {key}"
+                    cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
+                    
+                    # 안내 문구 추가
+                    h_f, w_f = final_img.shape[:2]
+                    cv2.rectangle(final_img, (0, h_f-40), (w_f, h_f), (0,0,0), -1)
+                    cv2.putText(final_img, f"[{idx+1}/{len(grouped_list)}] A:Prev | D/Space:Next | Q:Quit", (20, h_f-12), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255,255,255), 2)
+                    
+                    cv2.imshow(win_name, final_img)
+                    logger.success(f"📺 [{idx+1}/{len(grouped_list)}] {key} 확인 중... (A:이전, D/Space:다음, Q:종료)")
+                    kv = cv2.waitKey(0) & 0xFF
+                    cv2.destroyWindow(win_name)
+
+                    if kv == ord('q') or kv == ord('Q'): 
+                        logger.info("🛑 사용자가 테스트를 조기 종료했습니다.")
+                        break
+                    elif kv == ord('a') or kv == ord('A'):
+                        idx = max(0, idx - 1) # 이전 그룹으로 이동
+                    else:
+                        idx += 1 # 다음 그룹으로 이동 (Space, D 포함 모든 키)
+
+                task.state = DiagnosisState.COMPLETED
+                db_session.commit(); task_processed = True; break
+            
+            if time.time() - start_time > 30: break
+            time.sleep(2)
+        assert task_processed, "❌ 처리 실패"
+    except Exception as e:
+        db_session.rollback(); logger.error(f"❌ 오류: {e}"); raise e
+
+def test_add_mock_inspection_task(db_session):
+    """
+    [Polling Test용] 임의의 QUEUED 태스크를 DB에 추가합니다.
+    diagnosis_watcher.py를 구현한 후, 이 테스트로 데이터를 넣고 감시 로직을 확인할 수 있습니다.
+    """
+    logger.info("📝 [MOCK] 테스트용 QUEUED 태스크 추가")
+    
+    # [설정] 테스트하고 싶은 경로와 미션 이름을 아래에서 변경하세요.
+    new_task = InspectionData(
+        site="TestSite",
+        mission_name="B1_Room_Inspection",
+        data_raw_dir="/home/kiie/projects/python/inspection/examples/sample_images",
+        data_result_dir="/home/kiie/projects/python/inspection/output",
+        state=DiagnosisState.QUEUED
+    )
+    
+    db_session.add(new_task)
+    db_session.commit()
+    logger.success(f"✅ QUEUED 태스크(ID: {new_task.id})가 추가되었습니다.")

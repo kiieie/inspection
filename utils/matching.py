@@ -36,8 +36,24 @@ def is_type_compatible(excel_target, detected_label):
         else:
             if d_str.startswith(mapping.lower()): return True
 
-    # 2. 기본 매칭
-    return d_str.startswith(e_str.replace(" ", "_"))
+    # 2. 기본 매칭 (startswith)
+    norm_target = e_str.replace(" ", "_")
+    if d_str.startswith(norm_target): return True
+    
+    # 3. [New] Fuzzy Matching (핵심 키워드 포함 여부)
+    # 예: "DG_Air-Conditioner" (Target) <-> "DG_Temp_Air-Conditioner_NA" (Detected)
+    # 접두어(DG_, AG_) 제거 후 남은 핵심 단어가 포함되어 있으면 매칭 인정
+    prefixes = ["dg_", "ag_", "sw_", "led_", "etc_"]
+    target_core = norm_target
+    for p in prefixes:
+        if target_core.startswith(p):
+            target_core = target_core[len(p):]
+            break
+            
+    if len(target_core) > 3 and target_core in d_str:
+        return True
+        
+    return False
 
 def sort_by_grid_position(detections):
     """Y축 우선 정렬 후 행 단위 X축 정렬 (좌상->우하)"""
@@ -66,28 +82,38 @@ def sort_by_grid_position(detections):
 # [utils/matching.py]
 def evaluate_gauge_reading(det, excel_row):
     """
-    AG 게이지의 ratio(0~1)를 실제 물리 수치로 변환
+    AG 게이지의 ratio(0~1)를 실제 물리 수치로 변환하거나, 
+    DG 등의 직접 판독치(value)를 평가함 (2026-01-13)
     """
     try:
-        # 엑셀의 컬럼명 확인 (파일에 따라 normal_min_value 또는 normal_min 일 수 있음)
         min_v = float(excel_row.get('min_value', 0))
         max_v = float(excel_row.get('max_value', 100))
         norm_min = float(excel_row.get('normal_min_value', 0))
         norm_max = float(excel_row.get('normal_max_value', 100))
         
-        # AGInspector가 계산한 바늘 위치 비율 (0.0 ~ 1.0)
-        ratio = det.get('value_ratio', 0.0)
-        
-        # 실제 값 계산: Min + (Ratio * 범위)
-        current_val = min_v + (ratio * (max_v - min_v))
+        # 2026-01-13 [Fix]: DG 등에서 'value'가 이미 존재하는 경우 직접 사용
+        if 'value' in det and det['value'] is not None:
+            try:
+                current_val = float(det['value'])
+            except ValueError:
+                # [Fix] 2026-01-14: "OCR Disabled" 등 텍스트 값이 들어오면 그대로 반환
+                return det['value'], "Unknown", True
+        else:
+            # 2026-01-13 [Refine]: AG ratio가 없을 경우 None 반환하여 원본 텍스트 유지 유도
+            if 'value_ratio' not in det:
+                return None, "No Value", False
+            ratio = det.get('value_ratio', 0.0)
+            current_val = min_v + (ratio * (max_v - min_v))
+            
         current_val = round(current_val, 2)
-        
         is_normal = norm_min <= current_val <= norm_max
         status = "PASS" if is_normal else "FAIL"
         
         return current_val, status, is_normal
     except Exception as e:
-        return 0.0, f"Error: {e}", False
+        # [Fix] 로깅 레벨을 Error -> Warning으로 낮추거나 아예 무시
+        # logger.warning(f"Value evaluation skipped: {e}")
+        return getattr(det, 'get', lambda k: None)('value'), "Error", False
     
 """
 프로그램명: 정밀 공간 매칭 유틸리티 (utils/matching.py)

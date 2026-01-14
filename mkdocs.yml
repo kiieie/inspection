@@ -1,0 +1,60 @@
+site_name: Industrial Inspection System Documentation
+site_description: AI-powered facility inspection and diagnosis system
+site_author: Development Team
+
+repo_name: inspection-system
+repo_url: https://github.com/your-org/inspection-system
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quick-start.md
+    - Development Setup: getting-started/development.md
+  - Architecture:
+    - Overview: architecture/overview.md
+    - Core Components: architecture/components.md
+    - Data Flow: architecture/data-flow.md
+  - Inspectors:
+    - Analog Gauge (AG): inspectors/ag-inspector.md
+    - Digital Gauge (DG): inspectors/dg-inspector.md
+    - Switch/LED: inspectors/sw-led-inspector.md
+    - VLM Integration: inspectors/vlm-inspector.md
+  - Development:
+    - Testing Guide: development/testing.md
+    - Performance Optimization: development/performance.md
+    - Multi-Agent Development: development/multi-agent.md
+    - Hot Reload: development/hot-reload.md
+  - API Reference:
+    - Core Classes: api/core.md
+    - Inspectors API: api/inspectors.md
+    - Utils API: api/utils.md
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: blue
+    accent: orange
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - header.autohide
+
+plugins:
+  - search
+  - mkdocstrings
+  - git-revision-date-localized
+
+markdown_extensions:
+  - codehilite
+  - admonition
+  - toc:
+    permalink: true
+  - pymdownx.highlight:
+    use_pygments: true
+  - pymdownx.superfences
+  - pymdownx.inlinehilite

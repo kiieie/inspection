@@ -39,11 +39,12 @@ def draw_stack_text(img, text, current_y, font_scale=0.7, color=(0, 255, 255), t
     # 다음 줄을 위한 Y 좌표 반환 (줄간격 포함)
     return current_y + text_h + 20
 
-def draw_diagnosis_box(img, box, excel_row, found_label, status="PASS", value=None, is_normal=True):
+def draw_diagnosis_box(img, box, excel_row, found_label, status="PASS", value=None, is_normal=True, keypoints=None):
     """
     [V251215 고도화] 
     1. status="PASS"면 박스는 무조건 초록색 (사용자 요청: 매칭되면 PASS)
     2. is_normal=False면 수치 정보가 포함된 두 번째 줄을 적색으로 표시
+    3. keypoints가 있으면 (AG_) 별도 표시 (2026-01-14)
     """
     x1, y1, x2, y2 = map(int, box)
     
@@ -72,6 +73,22 @@ def draw_diagnosis_box(img, box, excel_row, found_label, status="PASS", value=No
     fac_text = f"{excel_row.get('facility_1','')} | {excel_row.get('facility_2','')}"
     draw_outline_text(img, fac_text, (x1, y2 + 20), (255, 255, 255), font_scale=0.45)
 
+    # --- [New] Keypoints 시각화 (AG 전용) ---
+    if keypoints is not None:
+        kp_names = ["Start", "Mid", "Center", "End", "Needle"]
+        # 점색상: 시작(파랑), 중간(노랑), 중심(흰색), 종료(빨강), 바늘(연두)
+        kp_colors = [(255, 0, 0), (0, 255, 255), (255, 255, 255), (0, 0, 255), (0, 255, 0)]
+        
+        for idx, kp in enumerate(keypoints):
+            if idx >= len(kp_names): break
+            kx, ky = map(int, kp[:2])
+            conf = kp[2] if len(kp) > 2 else 1.0
+            
+            if conf > 0.5:
+                cv2.circle(img, (kx, ky), 4, kp_colors[idx], -1)
+                cv2.circle(img, (kx, ky), 5, (0, 0, 0), 1) # 테두리
+                draw_outline_text(img, kp_names[idx], (kx + 5, ky - 5), kp_colors[idx], font_scale=0.4, thickness=1)
+
 def draw_summary_table(img, summary_list):
     """화면 좌측 상단 O/X 점검 목록 리스트 표시"""
     y_pos = 100
@@ -80,6 +97,32 @@ def draw_summary_table(img, summary_list):
         mark = "O" if item['found'] else "X"
         color = config.COLORS["PASS"] if item['found'] else config.COLORS["FAIL"]
         draw_outline_text(img, f"{mark} | {item['type']}", (15, y_pos), color, 0.6, 2)
+        y_pos += 25
+
+def draw_right_summary_table(img, summary_list):
+    """
+    [2026-01-13 New]: 화면 우측 상단에 점검 목록 전체 표시 (2026-01-14 고도화)
+    """
+    h_img, w_img = img.shape[:2]
+    y_pos = 70
+    title = "[ POINT STATUS ]"
+    
+    # 우측 정렬 (여백 20px)
+    start_x = w_img - 450 # 폭을 조금 더 넓힘
+    
+    draw_outline_text(img, title, (start_x, y_pos), (255, 255, 255), 0.7, 2)
+    y_pos += 35
+    
+    for item in summary_list:
+        mark = "OK" if item['found'] else "MISS"
+        color = config.COLORS["PASS"] if item['found'] else config.COLORS["FAIL"]
+        
+        # Facility 2와 Type을 조합하여 상세 표시
+        fac = item.get('fac2', 'N/A')
+        pt_type = item.get('type', 'N/A')
+        txt = f"{mark} | {fac} | {pt_type}"
+        
+        draw_outline_text(img, txt, (start_x, y_pos), color, 0.45, 1) # 폰트 크기 조절
         y_pos += 25
 
 def show_navigation_window(img, win_title, current_idx, total_count, target_width=1920):

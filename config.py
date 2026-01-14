@@ -17,6 +17,14 @@ VLM_CONFIG = {
     "model": "llava"
 }
 
+# [Database Settings - v2.5.0 추가]
+# SQLite DB 파일 및 모델 디렉토리 경로 설정
+DB_CONFIG = {
+    "db_path": os.path.join(os.path.dirname(__file__), "examples", "robot-control-system-db", "myapi.db"),
+    "models_dir": os.path.join(os.path.dirname(__file__), "examples", "robot-control-system-db"),
+    "models_file": "models.py"
+}
+
 # [NEW] 라벨 매칭 테이블 (Excel Type : AI Model Label 리스트)
 # AI 모델을 다시 학습시키지 않고도 여기서 매칭 관계를 정의할 수 있습니다.
 # [config.py]
@@ -229,8 +237,9 @@ STATUS_MAPPING = {
 
 # # [VLM Settings]
 VLM_CONFIG = {
-    "api_url": "http://10.73.136.208:11434/api/generate",  # 외부 서버일 경우 IP 변경
-    "model": "qwen3-vl:32b",  # ollama list에 있는 모델명 정확히 기입
+    # "api_url": "http://10.73.136.208:11434/api/generate",  # 외부 서버일 경우 IP 변경
+    "api_url": "http://localhost:11434/api/generate",  # 외부 서버일 경우 IP 변경
+    "model": "qwen3-vl:8b",  # 2026-01-13: 사용자 요청에 따라 qwen3-vl:8b 모델 사용
     "stream": True
 }
 # [config.py]
@@ -243,34 +252,33 @@ VLM_CONFIG = {
 # 엑셀의 inspection_point_type에 따라 다른 질문을 던집니다.
 # 키(Key)는 엑셀의 타입명 일부 혹은 전체입니다.
 VLM_PROMPTS = {
-    # CLI_1.py 참고 (덕트, 일반 설비 등)
-    "Class_C-Duct": """3줄만. 형식 고정. 이유 설명 금지.
-        1)청소상태(1~5):
-        2)누수여부(O/X):
-        3)부식여부(O/X):""",
+    # [Digital Gauge - English Prompts 2026-01-13]
+    "DG_Air-Conditioner": "Write only the value. 1 line. No reason. Number only. 1) Number:",
+    "DG_BMS": "Write only the status. 1 line. No reason. If normal 'Normal', if abnormal 'Abnormal'. 1) Status:",
+    "DG_TR-temp": "Write only the numbers. 2 lines. No reason. 1) PEAK: , 2) Temp. Controller:",
+    "DG_Digital-Integrated-Meter": "Write only the values. 4 lines. No reason. 1) Va: , 2) Ia: , 3) P: , 4) WH:",
+    "DG_GIMAC-DC": "Write only the numbers. 3 lines. No reason. 1) Top: , 2) Mid: , 3) Bottom:",
+    
+    # [Class Items - English Prompts 2026-01-13]
+    "Class_C-Duct": """Write in 3 lines. English only. No reason.
+        1) Cleaning State(1~5):
+        2) Leakage(O/X):
+        3) Corrosion(O/X):""",
+    "Class_Pipe_condition": """Write in 1 line. English only. No reason.
+        1) Insulation State(Good/Poor):""",
+    "Class_Water_level_gauge": """Write in 2 lines. English only. No reason.
+        1) Leakage(O/X):
+        2) Damage(O/X):""",
+    "Class_Outlet": """Write in 1 line. English only. No reason.
+        1) Outlet Condition(Good/Poor):""",
+    "Class_Wire_condition": """Write in 1 line. English only. No reason.
+        1) Abnormality(Good/Poor):""",
+    "Class_Fire": """Write in 2 lines. English only. No reason.
+        1) Location(Normal/Abnormal):
+        2) Fire-extinguisher State(Good/Poor):""",
+    "Class_Clean": """Write in 1 line. English only. No reason.
+        1) Cleaning State(Good/Poor):""",
 
-    # CLI_2.py 참고 (배관 보온재)
-    "Class_Pipe_condition": """1줄만. 형식 고정. 이유 설명 금지. 찢김이나 벗겨짐 등 특이사항 있는지 확인
-        1) 파이프 겉 보온재 상태(양호/불량) :""",
-
-    # CLI_3.py 참고 (누수/파손 일반)
-    "Class_Water_level_gauge": """2줄만. 형식 고정. 이유 설명 금지.
-        1)누수여부(O/X):
-        2)파손여부(O/X):""",
-
-    # CLI_4.py 참고 (콘센트)
-    "Class_Outlet": """1줄만. 형식 고정. 이유 설명 금지. 콘센트 전원 이상 및 파손부위는 없는가?
-        1)콘센트 이상 및 파손 여부(양호/불량):""",
-
-    # CLI_5.py 참고 (전선/함체)
-    "Class_Wire_condition": """1줄만. 형식 고정. 이유 설명 금지. 전선 및 전선관,접속단자 등 상태(손상,열화,변색 등) - 함 외부
-        1)이상 여부(양호/불량):""",
-
-    # CLI_6.py 참고 (소화기 정밀) - 필요시 Class_Fire 등으로 매핑
-    "Class_Fire": """2줄만. 형식 고정. 이유 설명 금지. 소화기 위치가 적정한지(표시판 밑에 있어야함)와 깨짐이나 부식등이 있는지 확인
-        1)소화기 위치(정상/비정상):
-        2)소화기 상태(양호/불량):""",
-
-    # 기본값 (매칭되는 게 없을 때)
-    "DEFAULT": """화면의 설비 상태를 점검해주세요. 파손, 오염, 이상 여부를 3줄 이내로 요약하세요."""
+    # Default
+    "DEFAULT": """Describe the equipment state in 1-2 lines. English only. Focus on damage or abnormality."""
 }

@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Diagnosis Web Board</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+
+        .glass {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .status-pass {
+            color: #4ade80;
+            background: rgba(74, 222, 128, 0.1);
+        }
+
+        .status-fail {
+            color: #f87171;
+            background: rgba(248, 113, 113, 0.1);
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        /**
+         * [UI Configuration] 
+         * 규칙 6: UI 설정에 대한 부분은 상세하게 파일 제일 앞쪽에 배치
+         */
+        const UI_CONFIG = {
+            API_BASE_URL: 'http://localhost:38000',
+            POLLING_INTERVAL: 2000, // 데이터 갱신 주기 (ms)
+            ZOOM_LIMITS: { MIN: 0.5, MAX: 10 },
+            ZOOM_STEP: 1.1
+        };
+
+        const { useState, useEffect } = React;
+
+        function App() {
+            const [results, setResults] = useState([]);
+            const [status, setStatus] = useState({});
+            const [loading, setLoading] = useState(true);
+
+            const [zoom, setZoom] = useState(1);
+            const [offset, setOffset] = useState({ x: 0, y: 0 });
+            const [isDragging, setIsDragging] = useState(false);
+            const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
+            const fetchData = async () => {
+                try {
+                    const [resData, statusData] = await Promise.all([
+                        fetch(`${UI_CONFIG.API_BASE_URL}/api/latest-results`).then(r => r.json()),
+                        fetch(`${UI_CONFIG.API_BASE_URL}/api/status`).then(r => r.json())
+                    ]);
+                    setResults(resData);
+                    setStatus(statusData);
+                    setLoading(false);
+                } catch (error) {
+                    console.error("Fetch error:", error);
+                }
+            };
+
+            const handlePushTask = async () => {
+                try {
+                    const response = await fetch(`${UI_CONFIG.API_BASE_URL}/api/push-task`, { method: 'POST' });
+                    const result = await response.json();
+                    if (result.status === 'success') {
+                        console.log("Task Pushed:", result);
+                        fetchData(); // 즉시 데이터 갱신
+                    }
+                } catch (error) {
+                    console.error("Push error:", error);
+                }
+            };
+
+            // [Zoom & Pan Logic]
+            const handleWheel = (e) => {
+                e.preventDefault();
+                const delta = e.deltaY > 0 ? (1 / UI_CONFIG.ZOOM_STEP) : UI_CONFIG.ZOOM_STEP;
+                const newZoom = Math.min(Math.max(zoom * delta, UI_CONFIG.ZOOM_LIMITS.MIN), UI_CONFIG.ZOOM_LIMITS.MAX);
+                setZoom(newZoom);
+            };
+
+            const handleMouseDown = (e) => {
+                if (e.button === 2) { // Right Click
+                    setIsDragging(true);
+                    setDragStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
+                }
+            };
+
+            const handleMouseMove = (e) => {
+                if (isDragging) {
+                    setOffset({
+                        x: e.clientX - dragStart.x,
+                        y: e.clientY - dragStart.y
+                    });
+                }
+            };
+
+            const handleMouseUp = () => {
+                setIsDragging(false);
+            };
+
+            const handleResetZoom = () => {
+                setZoom(1);
+                setOffset({ x: 0, y: 0 });
+            };
+
+            useEffect(() => {
+                fetchData();
+                const interval = setInterval(fetchData, UI_CONFIG.POLLING_INTERVAL); // 설정된 주기로 폴링
+                return () => clearInterval(interval);
+            }, []);
+
+            return (
+                <div className="min-h-screen p-6">
+                    <header className="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
+                        <div>
+                            <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
+                                Real-time Diagnosis Web Board
+                            </h1>
+                            <p className="text-slate-400 text-sm mt-1">2026-01-14 Integrated Monitoring System</p>
+                        </div>
+                        <div className="flex gap-4">
+                            <div className="glass px-4 py-2 rounded-lg text-center">
+                                <div className="text-xs text-slate-400 uppercase">Total</div>
+                                <div className="text-xl font-bold">{status.total_inspections || 0}</div>
+                            </div>
+                            <div className="glass px-4 py-2 rounded-lg text-center border-red-500/30">
+                                <div className="text-xs text-slate-400 uppercase">Fail</div>
+                                <div className="text-xl font-bold text-red-400">{status.fail_count || 0}</div>
+                            </div>
+                            <div className="glass px-4 py-2 rounded-lg text-center">
+                                <div className="text-xs text-slate-400 uppercase">Last Update</div>
+                                <div className="text-sm font-semibold">{status.last_update || 'N/A'}</div>
+                            </div>
+                        </div>
+                    </header>
+
+                    <main className="flex flex-col gap-6">
+                        {/* Top Section: Live View & Control Panel */}
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                            {/* Live View (Larger) */}
+                            <div className="lg:col-span-9 flex flex-col gap-4">
+                                <div className="glass rounded-xl overflow-hidden shadow-2xl">
+                                    <div className="bg-slate-800/50 px-6 py-4 border-b border-slate-700 flex justify-between items-center">
+                                        <h2 className="text-lg font-semibold flex items-center gap-2">
+                                            <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
+                                            Live Analysis Window
+                                        </h2>
+                                        <div className="flex items-center gap-4">
+                                            <button
+                                                onClick={handleResetZoom}
+                                                className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded text-slate-300 transition-colors"
+                                            >
+                                                Reset View
+                                            </button>
+                                            <span className="text-xs text-slate-400">Zoom: {zoom.toFixed(1)}x</span>
+                                        </div>
+                                    </div>
+                                    <div
+                                        className="p-2 bg-black flex items-center justify-center min-h-[500px] relative group overflow-hidden cursor-crosshair"
+                                        onWheel={handleWheel}
+                                        onMouseDown={handleMouseDown}
+                                        onMouseMove={handleMouseMove}
+                                        onMouseUp={handleMouseUp}
+                                        onMouseLeave={handleMouseUp}
+                                        onContextMenu={(e) => e.preventDefault()}
+                                    >
+                                        {results[0] && results[0].res_img ? (
+                                            <img
+                                                src={`${UI_CONFIG.API_BASE_URL}${results[0].res_img}`}
+                                                className="rounded-lg shadow-2xl max-w-full max-h-[750px] object-contain transition-transform duration-100 ease-out select-none pointer-events-none"
+                                                style={% raw %}{{
+                                                    transform: `translate(${offset.x}px, ${offset.y}px) scale(${zoom})`,
+                                                }}{% endraw %}
+                                                alt="Live Analysis"
+                                            />
+                                        ) : (
+                                            <div className="text-center text-slate-500 py-20">
+                                                <div className="text-4xl mb-4">📷</div>
+                                                <div className="text-lg">Waiting for analyze signal...</div>
+                                            </div>
+                                        )}
+                                        <div className="absolute bottom-6 right-6 bg-black/70 backdrop-blur-md px-4 py-2 rounded-lg text-sm font-bold border border-slate-700 text-emerald-400 shadow-lg pointer-events-none">
+                                            TARGET: {results[0] ? results[0].inspection_name : 'N/A'}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Control Panel (Right of Image) */}
+                            <div className="lg:col-span-3 flex flex-col gap-6">
+                                <div className="glass rounded-xl p-6 h-full flex flex-col">
+                                    <h3 className="text-sm font-semibold mb-6 text-slate-300 border-b border-slate-700 pb-3 uppercase tracking-wider flex items-center gap-2">
+                                        <span className="w-4 h-4 bg-blue-500 rounded-sm"></span>
+                                        Control Center
+                                    </h3>
+
+                                    <div className="space-y-6 flex-grow">
+                                        <div className="p-4 bg-slate-800/40 rounded-lg border border-slate-700">
+                                            <label className="text-[10px] text-slate-500 uppercase font-bold mb-2 block">Simulation Control</label>
+                                            <button
+                                                onClick={handlePushTask}
+                                                className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-lg font-bold transition-all shadow-lg active:scale-95"
+                                            >
+                                                Manual Task Push
+                                            </button>
+                                        </div>
+
+                                        <div className="p-4 bg-slate-800/40 rounded-lg border border-slate-700">
+                                            <label className="text-[10px] text-slate-500 uppercase font-bold mb-2 block">System Actions</label>
+                                            <button className="w-full bg-slate-700 hover:bg-slate-600 text-white py-2 rounded-lg font-semibold transition-all mb-2">
+                                                Clear History
+                                            </button>
+                                            <button className="w-full border border-slate-600 hover:bg-slate-700 text-slate-300 py-2 rounded-lg text-xs transition-all">
+                                                Download Report (.xlsx)
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="mt-8 pt-6 border-t border-slate-700">
+                                        <p className="text-[11px] text-slate-500 leading-relaxed italic">
+                                            * Use 'mock_task_filler.py' for interactive task injection. Enter to push, q to quit.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Bottom Section: Result Table (Full Width) */}
+                        <div className="w-full mt-2">
+                            <div className="glass rounded-xl overflow-hidden shadow-2xl">
+                                <div className="bg-slate-800/50 px-6 py-4 border-b border-slate-700 flex justify-between items-center">
+                                    <h2 className="text-lg font-semibold">Integrated Inspection Results</h2>
+                                    <div className="flex items-center gap-4">
+                                        <span className="text-xs text-slate-400">Autoscroll Enabled</span>
+                                        <div className="px-2 py-1 bg-emerald-500/20 text-emerald-400 text-[10px] font-bold rounded">LIVE DATA</div>
+                                    </div>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead className="bg-slate-800/90 text-slate-400 text-xs uppercase tracking-wider">
+                                            <tr className="border-b border-slate-700">
+                                                <th className="px-6 py-4 font-bold">Timestamp / Mission</th>
+                                                <th className="px-6 py-4 font-bold">Target Location (Point)</th>
+                                                <th className="px-6 py-4 font-bold">Category</th>
+                                                <th className="px-6 py-4 font-bold">Measured Value</th>
+                                                <th className="px-6 py-4 font-bold">Judgement</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-800">
+                                            {results.map((r) => (
+                                                <tr key={r.id} className="hover:bg-slate-800/40 transition-colors text-sm group">
+                                                    <td className="px-6 py-4">
+                                                        <div className="font-bold text-slate-200">{r.datetime.split(' ')[1]}</div>
+                                                        <div className="text-[10px] text-slate-500 group-hover:text-slate-400">{r.mission_name}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="text-blue-400 font-bold">{r.facility_1}</div>
+                                                        <div className="text-xs text-slate-400">{r.facility_2}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className="text-[11px] font-mono bg-slate-700/80 px-2 py-1 rounded text-slate-300 border border-slate-600">
+                                                            {r.inspection_point_type}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="font-bold text-emerald-400 text-lg">{r.result_value}</div>
+                                                        <div className="text-[10px] text-slate-500 font-mono">Range: {r.min_value} ~ {r.max_value}</div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <span className={`px-4 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-widest shadow-lg inline-block ${r.judgement === 'PASS' ? 'status-pass border border-emerald-500/30' : 'status-fail border border-red-500/30'}`}>
+                                                            {r.judgement}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                            {results.length === 0 && (
+                                                <tr>
+                                                    <td colSpan="5" className="px-6 py-20 text-center text-slate-500 italic">
+                                                        No inspection data received yet.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+
+</html>

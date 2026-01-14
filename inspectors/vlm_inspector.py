@@ -10,28 +10,69 @@ class VLMInspector:
         self.api_url = config.VLM_CONFIG["api_url"]
         self.model = config.VLM_CONFIG["model"]
     
-    def _encode_image(self, image_path):
-        """이미지 파일을 Base64 문자열로 인코딩"""
+    def _encode_image_from_array(self, image_array):
+        """[New] OpenCV 이미지를 Base64 문자열로 인코딩 (메모리 처리)"""
         try:
-            with open(image_path, "rb") as image_file:
-                return base64.b64encode(image_file.read()).decode('utf-8')
+            import cv2
+            _, buffer = cv2.imencode('.jpg', image_array)
+            return base64.b64encode(buffer).decode('utf-8')
         except Exception as e:
-            logger.error(f"이미지 인코딩 실패: {e}")
+            logger.error(f"메모리 이미지 인코딩 실패: {e}")
             return None
 
-    def get_prompt_by_type(self, inspection_type):
-        """점검 타입에 맞는 프롬프트 로드"""
-        for key, prompt in config.VLM_PROMPTS.items():
-            if key in inspection_type:
-                return prompt
-        return config.VLM_PROMPTS["DEFAULT"]
+    def analyze_crop(self, crop_img, prompt="Read the digital number displayed on the screen."):
+        """[New] 크롭된 이미지 영역에 대해 직접 VLM 질의 수행 (DG 전용)"""
+        b64_image = self._encode_image_from_array(crop_img)
+        if not b64_image:
+            return "Error: Image Encode Failed"
+
+        payload = {
+            "model": self.model,
+            "prompt": prompt,
+            "images": [b64_image],
+            "stream": False,
+            "options": {
+                "temperature": 0.0, # 확정적 답변 유도
+                "num_predict": 20   # 짧은 답변 유도
+            }
+        }
+
+        try:
+            logger.info(f"📡 VLM Crop Request -> '{prompt}'")
+            # 타임아웃 10초 (부분 질의이므로 전체보다 짧게 설정) -> VLM 특성상 30초로 넉넉히
+            response = requests.post(self.api_url, json=payload, timeout=60)
+            response.raise_for_status()
+            
+            result = response.json()
+            answer = result.get("response", "").strip()
+            
+            # 줄바꿈 및 불필요 공백 제거
+            answer = answer.replace("\n", " ").strip()
+            
+            logger.success(f"✅ VLM Crop Response: {answer}")
+            return answer
+
+        except Exception as e:
+            logger.error(f"❌ VLM Crop Error: {e}")
+            return "Error"
 
     def analyze(self, image_path, inspection_type):
         b64_image = self._encode_image(image_path)
         if not b64_image:
             return "Error: Image Load Failed"
 
-        prompt = self.get_prompt_by_type(inspection_type)
+        # [수정] 2026-01-13: 입력값이 VLM_PROMPTS 키가 아니면 직접 프롬프트로 인식
+        prompt = config.VLM_PROMPTS.get(inspection_type)
+        if not prompt:
+            # 부분 일치 확인
+            prompt = next((v for k, v in config.VLM_PROMPTS.items() if inspection_type.startswith(k)), None)
+        if not prompt:
+            # 키가 아니면 입력된 텍스트 자체를 프롬프트로 사용 (자유 질문 허용)
+            prompt = inspection_type
+
+        # prompt가 여전히 비어있다면 DEFAULT 사용
+        if not prompt or len(prompt.strip()) == 0:
+            prompt = config.VLM_PROMPTS.get("DEFAULT")
         
         payload = {
             "model": self.model,
