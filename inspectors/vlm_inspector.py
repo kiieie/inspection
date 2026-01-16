@@ -33,17 +33,21 @@ class VLMInspector:
             "stream": False,
             "options": {
                 "temperature": 0.0, # 확정적 답변 유도
-                "num_predict": 20   # 짧은 답변 유도
+                # "num_predict": 100   # 짧은 답변 유도 (Increased from 20 to 100)
             }
         }
 
         try:
-            logger.info(f"📡 VLM Crop Request -> '{prompt}'")
+            logger.info(f"📡 VLM Crop Request -> '{prompt}' (ImgLen: {len(b64_image)})")
             # 타임아웃 10초 (부분 질의이므로 전체보다 짧게 설정) -> VLM 특성상 30초로 넉넉히
             response = requests.post(self.api_url, json=payload, timeout=60)
             response.raise_for_status()
             
             result = response.json()
+            # Debug: Log full response if answer is empty
+            if not result.get("response", "").strip():
+                logger.warning(f"⚠️ Empty VLM Response. Raw JSON: {result}")
+                
             answer = result.get("response", "").strip()
             
             # 줄바꿈 및 불필요 공백 제거

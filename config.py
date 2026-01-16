@@ -4,6 +4,7 @@ import os
 # [Path Settings]
 BASE_DIR = "/home/kiie/synology/Projects/R25IA04/Inspection_and_Diagnosis/Inspection_Raw_DATA_Dockerd/robot-control-system_inspection_data(docker X)"
 EXCEL_FILE = "/home/kiie/synology/Projects/R25IA04/Inspection_point_Labeling.xlsx"
+RESULT_BASE_DIR = "/home/kiie/projects/python/inspection/results"
 
 # [Model Settings]
 MODEL_CONFIG = {
@@ -11,11 +12,11 @@ MODEL_CONFIG = {
     "ag_pose": "models/ag_inspector/weights/best.pt"
 }
 
-# [VLM Settings - 설계서 5.1 반영]
-VLM_CONFIG = {
-    "api_url": "http://localhost:11434/api/generate",
-    "model": "llava"
-}
+# # [VLM Settings - 설계서 5.1 반영]
+# VLM_CONFIG = {
+#     "api_url": "http://localhost:11434/api/generate",
+#     "model": "llava"
+# }
 
 # [Database Settings - v2.5.0 추가]
 # SQLite DB 파일 및 모델 디렉토리 경로 설정
@@ -148,20 +149,20 @@ LABEL_MAP = {
     "DG_BMS":[""],
     "DG_Boost-pump":["DG_Boost-pump_bar_NA"],
     "DG_Digital_Integrated_Meter":["DG_Va-Ia-P-UH_V-A-P-Mwh_NA"],
-    "DG_Digital_Meter":["DG_VAP_Meter_NA"],
+    "DG_Digital-Meter":["DG_VAP_Meter_NA"],
     "DG_UPS-600KVA":["DG_VA_NA_NA"],
     "DG_Electric-Water-Heater":["DG_Heater_Temp_NA"],
     "DG_Gen-Status":["DG_Gen-Status_Alt-Eng_NA"],
     "DG_PB_max":["DG_PB-Demend_R_NA"],
     "DG_Pump":["DG_Pump_ME_NA"],
     "DG_Thermo-hygro":["DG_Temp-Humi01_C-per_NA","DG_Temp-Humi02_C-per_NA"],
-    "DG_TR_temp":["DG_Tr-Temp_C_NA","DG_Pump_ME_NA"],
+    "DG_TR-temp":["DG_Tr-Temp_C_NA","DG_Pump_ME_NA"],
     "DG_UPS_100KVA":["DG_RST-RST_VVV-VVV-AAA_NA"],
     "DG_UPS_600KVA":["DG_VA_NA_NA"],
     "ETC_Fire_Extinguisher":["Etc_Fire-Extinguisher_NA_NA"],
     "ETC_Fire_Hydrant-sign":["Etc_Fire-Hydrant-sign_NA_NA"],
     "Class_Outlet":["Etc_Outlet_No-plug_ok"],
-    "LED_DELD_run-on":["LED_Leakage_Green-on_ok","LED_DELD_run-on_nok"],
+    "LED_DELD_PAB-on":["LED_Leakage_Green-on_ok","LED_DELD_run-on"],
     "LED_DMFR_run-on":["LED_DMFR_Run-on_ok","LED_DMFR_run-on_nok"],
     "LED_Controller":[""],
     "LED_Green":["LED_Green_off_nok","LED_Green_off_ok","LED_Green_on_nok","LED_Green_on_ok"],
@@ -252,14 +253,9 @@ VLM_CONFIG = {
 # 엑셀의 inspection_point_type에 따라 다른 질문을 던집니다.
 # 키(Key)는 엑셀의 타입명 일부 혹은 전체입니다.
 VLM_PROMPTS = {
-    # [Digital Gauge - English Prompts 2026-01-13]
-    "DG_Air-Conditioner": "Write only the value. 1 line. No reason. Number only. 1) Number:",
-    "DG_BMS": "Write only the status. 1 line. No reason. If normal 'Normal', if abnormal 'Abnormal'. 1) Status:",
-    "DG_TR-temp": "Write only the numbers. 2 lines. No reason. 1) PEAK: , 2) Temp. Controller:",
-    "DG_Digital-Integrated-Meter": "Write only the values. 4 lines. No reason. 1) Va: , 2) Ia: , 3) P: , 4) WH:",
-    "DG_GIMAC-DC": "Write only the numbers. 3 lines. No reason. 1) Top: , 2) Mid: , 3) Bottom:",
+    # [Derived from DB/Excel - Translated to English 2026-01-14]
     
-    # [Class Items - English Prompts 2026-01-13]
+    # Class Items (Restored)
     "Class_C-Duct": """Write in 3 lines. English only. No reason.
         1) Cleaning State(1~5):
         2) Leakage(O/X):
@@ -278,7 +274,76 @@ VLM_PROMPTS = {
         2) Fire-extinguisher State(Good/Poor):""",
     "Class_Clean": """Write in 1 line. English only. No reason.
         1) Cleaning State(Good/Poor):""",
+    
+    # 1. Digital Gauges (Generic)
+    "DG_Air-Conditioner": "1 line only. Fixed format. No explanation. Number only. 1) Number",
+    "DG_Gen-Status": "1 line only. Fixed format. No explanation. Number only. 1) Coolant Temp",
+    "DG_Electric-Water-Heater": "1 line only. Fixed format. No explanation. Red number only. 1) Number",
+    "DG_Pump": "1 line only. Fixed format. No explanation. Number only. 1) Number",
 
+    # 2. Status Indicators
+    "DG_BMS": "1 line only. Fixed format. No explanation. If Top-Right shows Normal operation write 'Normal', else 'Abnormal'. 1) Status",
+    
+    # 3. Complex Meters
+    "DG_TR-temp": "1 lines only. Fixed format. No explanation. Red numbers. 1) PEAK ; 2) Temp. Controller",
+    "DG_Digital-Integrated-Meter": "1 lines only. Fixed format. No explanation. number only. 1) Va ; 2) Ia ; 3) P ; 4) WH",
+    "DG_GIMAC-DC": "1 lines only. Fixed format. No explanation. Numbers only. 1) Top ; 2) Middle ; 3) Bottom",
+    "DG_PB-max": "1 lines only. Fixed format. No explanation. Large numbers 4 columns only. if not detected NaN. 1) Col 1 ; 2) Col 2 ; 3) Col 3 ; 4) Col 4",
+    "DG_Thermo-hygro": "1 lines only. Fixed format. No explanation. Numbers. if not detected NaN. 1) Temp  ; 2) Humidity",
+    "DG_Digital-Meter": "1 lines only. Fixed format. all data should be 4 digit. No explanation. Numbers only. if not detected NaN. 1) Top  ; 2) Middle  ; 3) Bottom",
+    "DG_Boost-pump": "1 lines only. Fixed format. No explanation. Numbers inside top circle.if not detected NaN. 1) Set Pressure  ;  2) Current Pressure",
+    
+    # 4. UPS Systems (Complex Layouts)
+    "DG_UPS-100KVA": """1 lines only. Fixed format. No explanation. Bypass is at top-left R S T Voltage(V). Input is at bottom-left R S T Voltage(V) and Current(A). Battery is at bottom-center Voltage(V) and below it Current(A). Output is at bottom-right R S T Voltage(V) and Current(A).1) Input Voltage(V) (R), (S), (T) ; Current(A) (R), (S), (T)  ; 2) Output Voltage(V) (R), (S), (T) ; Current(A) (R), (S), (T)  ;  3) Bypass Voltage(V) (R), (S), (T)  ; 4) Battery (V), (A)""",
+
+    "DG_UPS-600KVA": """1 lines only. Fixed format. No explanation. Input is at bottom-left R S T Voltage(V) and Current(A). Output is below it R S T Voltage(V) and Current(A). Bypass is below output R S T Voltage(V). SOC is at bottom-right SOC % and Voltage(V), Current(A). 1) Input Voltage(V) (R), (S), (T) ; Current(A) (R), (S), (T)  ; 2) Output Voltage(V) (R), (S), (T)  ;  Current(A) (R), (S), (T)  ;  3) Bypass Voltage(V) (R), (S), (T)  ; 4) SOC % (V), (A)""",
+    
     # Default
-    "DEFAULT": """Describe the equipment state in 1-2 lines. English only. Focus on damage or abnormality."""
+    "DEFAULT": "Describe the equipment state in 1-2 lines. English only. Focus on damage or abnormality."
 }
+
+
+
+'''
+
+curl http://localhost:11434/api/generate -d @- <<EOF
+{
+  "model": "$MODEL",
+  "prompt": "1 lines only. Fixed format. No explanation. Input is at bottom-left R S T Voltage(V) and Current(A). Output is below it R S T Voltage(V) and Current(A). Bypass is below output R S T Voltage(V). SOC is at bottom-right SOC % and Voltage(V), Current(A). 1) Input Voltage(V) (R), (S), (T)  ;  Current(A) (R), (S), (T)  ; 2) Output Voltage(V) (R), (S), (T)  ;  Current(A) (R), (S), (T)  ;  3) Bypass Voltage(V) (R), (S), (T)  ; 4) SOC % (V), (A)",
+  "images": ["$IMG_DATA"],
+  "stream": false 
+}
+EOF
+
+kiie@ml:~$ IMG_PATH=~/Pictures/DG_UPS_600kVA.jpg
+kiie@ml:~$ IMG_DATA=$(base64 -w 0 "$IMG_PATH")
+
+curl http://10.134.34.208:18000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d @- <<EOF
+{
+  "model": "Qwen/Qwen3-VL-8B-Instruct",
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "1 lines only. Fixed format. No explanation. Input is at bottom-left R S T Voltage(V) and Current(A). Output is below it R S T Voltage(V) and Current(A). Bypass is below output R S T Voltage(V). SOC is at bottom-right SOC % and Voltage(V), Current(A). Format: 1) Input V(R,S,T), A(R,S,T); 2) Output V(R,S,T), A(R,S,T); 3) Bypass V(R,S,T); 4) SOC % (V, A)"
+        },
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "data:image/jpeg;base64,$IMG_DATA"
+          }
+        }
+      ]
+    }
+  ],
+  "max_tokens": 200,
+  "temperature": 0.0
+}
+EOF
+{"id":"chatcmpl-4eb85db2ff834efbbb4100b365beff6f","object":"chat.completion","created":1768442489,"model":"Qwen/Qwen3-VL-8B-Instruct","choices":[{"index":0,"message":{"role":"assistant","content":"1) Input V(220.7,220.6,221.0), A(130,125,119); 2) Output V(220.5,219.7,220.7), A(118,113,111); 3) Bypass V(220.9,220.7,220.5); 4) SOC 100.0% (560.0V, 1.0A)","refusal":null,"annotations":null,"audio":null,"function_call":null,"tool_calls":[],"reasoning":null,"reasoning_content":null},"logprobs":null,"finish_reason":"stop","stop_reason":null,"token_ids":null}],"service_tier":null,"system_fingerprint":null,"usage":{"prompt_tokens":637,"total_tokens":763,"completion_tokens":126,"prompt_tokens_details":null},"prompt_logprobs":null,"prompt_token_ids":null,"kv_transfer_params":null}kiie@ml:~$ 
+
+'''

@@ -82,6 +82,10 @@ class DiagnosisSystem:
                 task.state = DiagnosisState.FAILED
                 db.commit()
                 return
+            
+            # [Summary Log]
+            types_summary = [p.inspection_point_type for p in points]
+            logger.info(f"📋 Plan: Need to check {len(points)} points -> {types_summary}")
 
             # 2. 이미지 로드
             img_path = self.get_latest_image(self.base_path, mission_name, insp_name)
@@ -170,12 +174,6 @@ class DiagnosisSystem:
             # 4. 라벨 매핑 및 전처리
             expected_types = list(set([p.inspection_point_type for p in points]))
             for det in all_detections:
-                # 오타 수정 (전처리기)
-                if "extingisher" in det['label']: det['label'] = det['label'].replace("extingisher", "extinguisher")
-                
-                if det['label'] in expected_types:
-                    # 정확히 일치하면 skip
-                    continue
 
                 # config.LABEL_MAP을 이용한 통합 매칭 시도
                 matched_target = None
@@ -184,7 +182,11 @@ class DiagnosisSystem:
                     candidates = config.LABEL_MAP.get(target_type, [])
                     if not isinstance(candidates, list): candidates = [candidates]
                     for cand in candidates:
-                        if cand == det['label'] or (cand in det['label']):
+                        # [Fix] Use aggressive normalization for map lookup
+                        norm_cand = str(cand).lower().replace("-", "").replace("_", "")
+                        norm_det = str(det['label']).lower().replace("-", "").replace("_", "")
+                        
+                        if norm_cand == norm_det or norm_cand in norm_det:
                             matched_target = target_type; break
                     if matched_target: break
 
@@ -193,7 +195,10 @@ class DiagnosisSystem:
                         matched_target = target_type
                         break
                 
-                if matched_target: det['label'] = matched_target
+                if matched_target: 
+                    logger.info(f"🔄 Renaming Label: '{det['label']}' -> '{matched_target}'")
+                    det['label'] = matched_target
+                    
                 det['used'] = False
 
             # 5. 적응형 정렬 및 매칭 (Adaptive Sorting)
@@ -205,6 +210,8 @@ class DiagnosisSystem:
             
             candidates_by_label = {}
             for d in all_detections:
+                # [Fix] Use smart matching to group detections, not just strict equality
+                matched_target_type = None
                 if d['label'] in expected_types:
                     candidates_by_label.setdefault(d['label'], []).append(d)
             
@@ -230,92 +237,171 @@ class DiagnosisSystem:
             
             for depth_name, ex_bucket, det_bucket in [("Front", excel_front, det_front_pool), ("Rear", excel_rear, det_rear_pool)]:
                 available_dets = list(det_bucket)
+                # [Debug] Available Labels for Matching
+                logger.info(f"🔍 [Matching {depth_name}] Targets={[p.inspection_point_type for p in ex_bucket]} | Available={[d['label'] for d in available_dets]}")
+
                 for point in ex_bucket:
                     target = point.inspection_point_type
                     matched = next((d for i, d in enumerate(available_dets) if is_type_compatible(target, d['label'])), None)
                     
-                    # [Debug] 매칭 상세 로그
-                    if matched:
-                        logger.info(f"🎯 Match Found: Target='{target}' <--> Label='{matched['label']}'")
-                    else:
-                        logger.debug(f"⚠️ Match Failed: Target='{target}' vs Available={[d['label'] for d in available_dets]}")
-
-                    final_val, final_status = "N/A", "UNKNOWN"
-                    is_norm = False
-                    box_info = [0, 0, 0, 0]
+                    # [Logic Update] 'Class_' items should run on Full Image even if no YOLO match
+                    if not matched and target.upper().startswith("CLASS_"):
+                        h, w = img.shape[:2]
+                        matched = {
+                            'label': target, 
+                            'box': [0, 0, w, h], 
+                            'source': 'Virtual',
+                            'used': True
+                        }
+                        logger.info(f"🔹 [Pt] Target='{target}' | Force-Match for VLM Analysis (Full Image)")
                     
                     if matched:
                         matched['used'] = True
                         available_dets = [d for d in available_dets if d is not matched]
                         box_info = matched['box']
                         
+                        # [Spatial Rank Calculation]
+                        # 1. Filter all detections to only those compatible with the current target type
+                        compatible_dets = [d for d in all_detections if is_type_compatible(target, d['label'])]
+                        
+                        # 2. Sort compatible items
+                        sorted_x = sorted(compatible_dets, key=lambda d: d['center_x'])
+                        sorted_y = sorted(compatible_dets, key=lambda d: d['center_y'])
+                        
+                        # 3. Find rank of matched object within its type group
+                        try:
+                            rank_x = sorted_x.index(matched) + 1
+                            rank_y = sorted_y.index(matched) + 1
+                        except ValueError:
+                            rank_x, rank_y = 0, 0 # Should not happen
+
+                        log_msg = f"✅ [Pt] Target='{target}' | Match='{matched['label']}' | Loc='{depth_name}' | Pos=(Left #{rank_x}, Top #{rank_y})"
+                        logger.info(log_msg)
+                    else:
+                        rank_x, rank_y = None, None
+                        box_info = [0, 0, 0, 0] # Initialize for failed match case (Fix UnboundLocalError)
+                        log_msg = f"❌ [Pt] Target='{target}' | Match='None' | Loc='{depth_name}' | Pos=(Left N/A, Top N/A)"
+                        logger.warning(log_msg)
+
+                    final_val, final_status = "N/A", "UNKNOWN"
+                    is_norm = False
+                    
+                    if matched:
+                        # box_info already set above
+                        
                         if target.upper().startswith("AG"):
                             final_val, _, is_norm = evaluate_gauge_reading(matched, vars(point))
                             final_val = str(round(final_val, 2))
+                            logger.info(f"   ⏱️ AG Value: {final_val}")
                             if matched.get('source') == 'Pose' and 'keypoints' in matched:
                                 for i, kp in enumerate(matched['keypoints']):
                                     if len(kp) >= 3 and kp[2] > 0.25:
                                         cv2.circle(final_img, (int(kp[0]), int(kp[1])), 4, (0,0,255) if i in [2,4] else (255,0,0), -1)
                         
-                        elif target.upper().startswith("DG"):
-                            # [VLM Logic] VLM을 이용해 디지털 숫자 직접 판독
+                        elif target.upper().startswith("DG") or "DIGITAL" in target.upper() or "CLASS_" in target.upper():
+                            # [VLM Logic] Digital Gauge OR Class Item
                             x1, y1, x2, y2 = map(int, box_info)
                             h, w = img.shape[:2]
                             x1, y1 = max(0, x1), max(0, y1)
                             x2, y2 = min(w, x2), min(h, y2_in := y2)
                             
-                            if x2 > x1 and y2 > y1:
-                                # [Fix] 테스트 코드와 동일하게 Padding 추가 (인식률 향상)
+                            is_class_item = "CLASS_" in target.upper()
+                            
+                            crop = None
+                            if is_class_item:
+                                # User Request: Use FULL IMAGE for Class items
+                                crop = img
+                            elif x2 > x1 and y2 > y1:
                                 pad = 10
                                 crop = img[max(0, y1-pad):min(h, y2+pad), max(0, x1-pad):min(w, x2+pad)]
+                            
+                            if crop is not None:
+                                # [Prompt Selection]
+                                prompt = config.VLM_PROMPTS.get(target, config.VLM_PROMPTS["DEFAULT"])
+                                if prompt == config.VLM_PROMPTS["DEFAULT"]:
+                                    for key, p_text in config.VLM_PROMPTS.items():
+                                        if key in target:
+                                            prompt = p_text
+                                            break
                                 
-                                # VLM 질의 수행
-                                vlm_resp = self.vlm_inspector.analyze_crop(crop)
+                                # VLM Query
+                                vlm_resp = self.vlm_inspector.analyze_crop(crop, prompt=prompt)
                                 
-                                # [Logic] 응답에서 실제 숫자만 추출 (테스트 코드 로직 이식)
-                                import re
-                                try:
-                                    if vlm_resp and str(vlm_resp).strip():
-                                        # 실수 또는 정수 패턴 찾기
-                                        numbers = re.findall(r"[-+]?\d*\.\d+|\d+", str(vlm_resp))
-                                        if numbers:
-                                            matched['value'] = numbers[0] # 첫 번째 발견된 숫자 사용
-                                        else:
-                                            matched['value'] = vlm_resp # 숫자가 없으면 원본 텍스트 유지
-                                    else:
-                                        matched['value'] = "No Read"
-                                except:
-                                    matched['value'] = "Parse Error"
+                                # [Post-Processing]
+                                matched['value'] = str(vlm_resp).replace("\n", " | ").strip() if vlm_resp else "No Read"
+                                
+                                if not is_class_item:
+                                    # DG: Use VLM response as is (User Request)
+                                    pass
+
                             else:
                                 matched['value'] = "Crop Fail"
                             
-                            # 값 평가
-                            val_raw, _, is_norm = evaluate_gauge_reading({'value': matched.get('value'), 'label': matched['label']}, vars(point))
-                            
-                            final_val = str(val_raw) if val_raw is not None else "Reading Fail"
-                            
-                            # 값이 "No Read"나 기타 에러면 FAIL 처리
-                            if final_val in ["No Read", "Crop Fail", "Reading Fail", "Parse Error"]:
-                                is_norm = False
-                                final_status = "FAIL"
+                            if is_class_item:
+                                # Class Item Logic: Just write VLM data
+                                final_val = matched['value']
+                                logger.info(f"   📝 Class Result: {final_val}")
+                                
+                                val_lower = str(final_val).lower()
+                                if any(bad in val_lower for bad in ["poor", "abnormal", "leakage(o)", "damage(o)", "corrosion(o)"]):
+                                    is_norm = False
+                                    final_status = "FAIL"
+                                else:
+                                    is_norm = True
+                            else:
+                                # DG Evaluation
+                                # User Request: Use raw VLM response as final_val
+                                final_val = matched['value']
+                                logger.info(f"   🤖 DG Value: {final_val}")
+                                
+                                # Use evaluate_gauge_reading ONLY for Pass/Fail check
+                                _, _, is_norm = evaluate_gauge_reading({'value': final_val, 'label': matched['label']}, vars(point))
+                                
+                                if final_val in ["No Read", "Crop Fail", "Reading Fail", "Parse Error"]:
+                                    is_norm = False
+                                    final_status = "FAIL"
 
                         else:
+                            # 3. Default (ETC, SW, LED, etc.) -> FOUND
                             is_norm, reason = self.sw_led_inspector.check_status_compliance(matched['label'], target)
-                            final_val = matched['label']
-
+                            final_val = "Found"
+                            logger.info(f"   🔎 Status: {final_val}")
+                        
                         final_status = "PASS" if is_norm else "FAIL"
                         draw_diagnosis_box(final_img, box_info, vars(point), matched['label'], final_status, value=final_val)
+                    
+                    else:
+                        # [No Match Found]
+                        final_val = "Not Found"
+                        final_status = "FAIL"
+                        # draw_diagnosis_box is not called if box is 0,0,0,0 or handled differently?
+                        # Usually we draw an outline or text for missing item if coords known? 
+                        # But without detection, we don't have box using which to draw.
+                        # Logic continues to _save_result.
                     
                     # [Fix] 결과 DB 저장 (생성해둔 절대 경로 res_abs_path 전달)
                     self._save_result(db, task.id, point, final_val, final_status, img_path, box_info, res_abs_path)
                     summary_list.append({"type": target, "found": matched is not None})
 
+            # [User Request] Draw Unmatched (Unused) Detections as Gray Boxes
+            for d in all_detections:
+                if not d.get('used', False):
+                    x1, y1, x2, y2 = map(int, d['box'])
+                    gray_color = (128, 128, 128)
+                    cv2.rectangle(final_img, (x1, y1), (x2, y2), gray_color, 1)
+                    draw_outline_text(final_img, f"Unmatched: {d['label']}", (x1, y1 - 5), gray_color, font_scale=0.4)
+
             # 7. 통합 결과 이미지 저장
             draw_summary_table(final_img, summary_list)
-            # 이미 경로는 생성했으므로 저장만 수행
-            cv2.imwrite(str(res_path), final_img)
+            
+            # [Fix] Save structured result (Image + JSON)
+            saved_img_path = self.save_inspection_data(task, points[0] if points else None, final_img, summary_list, all_detections, img_path)
+            
+            # [User Request] Show Result Window
+            cv2.imshow("Inspection Result", final_img)
+            cv2.waitKey(1)
 
-            task.data_result_dir = res_abs_path
+            task.data_result_dir = saved_img_path
             task.state = DiagnosisState.COMPLETED
             db.commit()
             logger.info(f"✅ 태스크 {task_id} 처리 완료 (총 {len(points)}개 지점)")
@@ -326,6 +412,64 @@ class DiagnosisSystem:
             if task: task.state = DiagnosisState.FAILED; db.commit()
         finally:
             db.close()
+
+    def save_inspection_data(self, task, point, img, summary, detections, original_img_path):
+        """
+        [User Request] Save Result Image & JSON to Structured Directory.
+        Path: BASE_DIR/{site}/{mission}/{inspection}/{filename}_result.jpg (.json)
+        """
+        import json
+        
+        # 1. Construct Path
+        if point:
+            site = point.site
+            mission = point.mission_name
+            insp = point.inspection_name
+        else:
+            site, mission, insp = "Unknown", "Unknown", "Unknown"
+            
+        base_dir = config.RESULT_BASE_DIR
+        target_dir = os.path.join(base_dir, site, mission, insp)
+        os.makedirs(target_dir, exist_ok=True)
+        
+        # 2. Filename
+        orig_name = os.path.splitext(os.path.basename(original_img_path))[0]
+        res_img_name = f"{orig_name}_result.jpg"
+        res_json_name = f"{orig_name}_result.json"
+        
+        res_img_path = os.path.join(target_dir, res_img_name)
+        res_json_path = os.path.join(target_dir, res_json_name)
+        
+        # 3. Save Image
+        cv2.imwrite(res_img_path, img)
+        logger.info(f"   💾 Saved Result Image: {res_img_path}")
+        
+        # 4. Save JSON
+        data = {
+            "task_id": task.id,
+            "date": datetime.now().isoformat(),
+            "site": site,
+            "mission": mission,
+            "inspection": insp,
+            "original_image": original_img_path,
+            "summary": summary,
+            "detections": [
+                {
+                    "label": d['label'],
+                    "box": d['box'], # box is list
+                    "score": float(d.get('score', 0.0)),
+                    "used": d.get('used', False),
+                    "value": d.get('value', None)
+                }
+                for d in detections
+            ]
+        }
+        
+        with open(res_json_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+        logger.info(f"   💾 Saved Result JSON: {res_json_path}")
+        
+        return res_img_path
 
     def _save_result(self, db, data_id, point, val, status, raw_path, box, res_path_str):
         """진단 결과를 InspectionResult 테이블에 기록합니다."""
@@ -365,8 +509,11 @@ class DiagnosisSystem:
     def run(self):
         logger.info("🚀 [Advanced Engine] DB Polling 시작...")
         while True:
-            db = SessionLocal()
+            # UI Refresh (Handle Window Events)
+            cv2.waitKey(100)
+            
             try:
+                db = SessionLocal()
                 queued_task = db.query(InspectionData).filter(
                     InspectionData.state == DiagnosisState.QUEUED
                 ).order_by(InspectionData.id.asc()).first()

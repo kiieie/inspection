@@ -12,11 +12,12 @@ import config as proj_config
 
 def pytest_configure(config):
     """모든 테스트 수집 및 실행 전 모델을 동적으로 임포트하여 전역 네임스페이스에 등록"""
-    models_path = Path(proj_config.DB_CONFIG['models_dir']) / proj_config.DB_CONFIG['models_file']
-    spec = importlib.util.spec_from_file_location("models", str(models_path))
-    models = importlib.util.module_from_spec(spec)
-    sys.modules["models"] = models
-    spec.loader.exec_module(models)
+    # models_path = Path(proj_config.DB_CONFIG['models_dir']) / proj_config.DB_CONFIG['models_file']
+    # spec = importlib.util.spec_from_file_location("models", str(models_path))
+    # models = importlib.util.module_from_spec(spec)
+    # sys.modules["models"] = models
+    # spec.loader.exec_module(models)
+    pass
 
 @pytest.fixture(scope="session")
 def db_engine():

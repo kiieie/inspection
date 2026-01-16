@@ -188,6 +188,7 @@ def test_ag_gauge_inference_grouped(system_setup):
 - [UI] 창 제목 AG 형식으로 통일 및 OCR 텍스트 원본 위치 오버랩
 """
 
+
 def test_dg_gauge_inference_grouped(system_setup):
     import cv2
     import numpy as np
@@ -1308,8 +1309,8 @@ def test_add_mock_inspection_task(db_session):
     # [설정] 테스트하고 싶은 경로와 미션 이름을 아래에서 변경하세요.
     new_task = InspectionData(
         site="TestSite",
-        mission_name="B1_Room_Inspection",
-        data_raw_dir="/home/kiie/projects/python/inspection/examples/sample_images",
+        mission_name="battery_room",
+        data_raw_dir=config.BASE_DIR,
         data_result_dir="/home/kiie/projects/python/inspection/output",
         state=DiagnosisState.QUEUED
     )

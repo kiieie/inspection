@@ -26,6 +26,14 @@ def get_type_group_id(label_str):
 def is_type_compatible(excel_target, detected_label):
     e_str = str(excel_target).lower().strip()
     d_str = str(detected_label).lower().strip()
+    # [Debug] Trace comparison
+    # print(f"DEBUG: Comparing '{e_str}' vs '{d_str}'")
+    # 0. [Fix] User Request: Eliminate dash and underscore, then compare
+    norm_e = e_str.replace("-", "").replace("_", "")
+    norm_d = d_str.replace("-", "").replace("_", "")
+    
+    if norm_e == norm_d: return True
+    if norm_d.startswith(norm_e): return True
     
     # 1. LABEL_MAP 확인
     if excel_target in config.LABEL_MAP:

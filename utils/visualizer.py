@@ -62,14 +62,32 @@ def draw_diagnosis_box(img, box, excel_row, found_label, status="PASS", value=No
     line1 = f"Exp: {exp_type}"
     line2 = f"Fnd: {found_label}{val_txt} {status_txt}"
 
-    # 첫 번째 줄: 기대 항목 (박스 색상과 동일)
-    draw_outline_text(img, line1, (x1, y1 - 32), box_color, font_scale=0.45)
+    # [Fix] 텍스트 위치 보정
+    # y1이 너무 위쪽이면 박스 안쪽이나 아래쪽으로 이동해야 함
+    text_y_start = y1 - 32
+    text_is_inside = False
     
-    # [핵심] 두 번째 줄: 수치 이상이거나 정의 안 됨(is_normal=False)이면 적색으로 표시
-    text_color_line2 = box_color if is_normal else config.COLORS["FAIL"] # 적색
-    draw_outline_text(img, line2, (x1, y1 - 10), text_color_line2, font_scale=0.5, thickness=2)
+    if y1 < 60: # 화면 상단에 박스가 붙어있는 경우 (Class Item 등)
+        text_y_start = y1 + 30 # 박스 안쪽 상단으로 이동
+        text_is_inside = True
+
+    # 첫 번째 줄: 기대 항목
+    draw_outline_text(img, line1, (x1, text_y_start), box_color, font_scale=0.5 if text_is_inside else 0.45)
+    
+    # 두 번째 줄: 결과값 (긴 텍스트 줄바꿈 처리)
+    text_color_line2 = box_color if is_normal else config.COLORS["FAIL"]
+    current_y = text_y_start + 22
+    
+    # | 또는 \n 으로 분리하여 멀티라인 출력
+    lines = line2.replace("|", "\n").split("\n")
+    for i, seq_line in enumerate(lines):
+        clean_line = seq_line.strip()
+        if not clean_line: continue
+        draw_outline_text(img, clean_line, (x1, current_y), text_color_line2, font_scale=0.5 if text_is_inside else 0.5, thickness=2)
+        current_y += 20
     
     # --- 하단 정보 표시 (설비 명칭) ---
+    # 만약 텍스트가 안쪽에 있으면 하단 정보도 위치 조정 고려 필요하나, 보통 하단 여백은 충분함
     fac_text = f"{excel_row.get('facility_1','')} | {excel_row.get('facility_2','')}"
     draw_outline_text(img, fac_text, (x1, y2 + 20), (255, 255, 255), font_scale=0.45)
 
