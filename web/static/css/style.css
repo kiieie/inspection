@@ -1,0 +1,233 @@
+:root {
+    --bg-color: #1a1a1a;
+    --card-bg: #2d2d2d;
+    --text-primary: #ffffff;
+    --text-secondary: #a0a0a0;
+    --accent-color: #3b82f6;
+    --border-color: #404040;
+    --pass-color: #10b981;
+    --fail-color: #ef4444;
+}
+
+body {
+    margin: 0;
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-primary);
+    height: 100vh;
+    overflow: hidden;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+/* Header */
+.control-panel {
+    background-color: var(--card-bg);
+    padding: 1rem 2rem;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.task-info h1 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.25rem;
+}
+
+.info-grid {
+    display: flex;
+    gap: 1.5rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.highlight {
+    color: var(--accent-color);
+    font-weight: 600;
+}
+
+/* Buttons */
+.btn {
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background-color 0.2s;
+}
+
+.btn.primary {
+    background-color: var(--accent-color);
+    color: white;
+}
+
+.btn.primary:hover {
+    background-color: #2563eb;
+}
+
+.btn.secondary {
+    background-color: var(--border-color);
+    color: white;
+}
+
+.btn.secondary:hover {
+    background-color: #525252;
+}
+
+/* Main Grid (Now Stacked) */
+.dashboard-grid {
+    display: flex;
+    flex-direction: column;
+    /* Stack vertically */
+    gap: 1px;
+    flex: 1;
+    background-color: var(--border-color);
+    /* Grid line color */
+    height: 100%;
+    overflow: hidden;
+}
+
+.visual-section {
+    flex: 2;
+    /* 2/3 height */
+    background-color: var(--bg-color);
+    padding: 1rem;
+    overflow: hidden;
+    /* Image container handles scroll/fit */
+    position: relative;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.data-section {
+    flex: 1;
+    /* 1/3 height */
+    background-color: var(--bg-color);
+    padding: 1rem;
+    overflow: auto;
+    position: relative;
+}
+
+/* Image Viewer */
+.image-container {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+}
+
+#result-image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+#loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+#placeholder-text {
+    color: var(--text-secondary);
+}
+
+/* Table */
+.data-section h2 {
+    margin-top: 0;
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+th,
+td {
+    padding: 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+th {
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.font-mono {
+    font-family: monospace;
+}
+
+.text-small {
+    font-size: 0.8rem;
+    color: #888;
+}
+
+.badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.status-pass {
+    background-color: rgba(16, 185, 129, 0.2);
+    color: var(--pass-color);
+}
+
+.status-fail {
+    background-color: rgba(239, 68, 68, 0.2);
+    color: var(--fail-color);
+}
+
+/* Highlight Box */
+#highlight-box {
+    position: absolute;
+    border: 3px solid #FFFF00;
+    /* Bright Yellow */
+    box-shadow: 0 0 10px rgba(255, 255, 0, 0.5);
+    z-index: 10;
+    pointer-events: none;
+    /* Click through to image if needed */
+    display: none;
+    transition: all 0.2s ease;
+}
+
+/* Clickable Table Rows */
+#result-table tbody tr {
+    cursor: pointer;
+    transition: background-color 0.1s;
+}
+
+#result-table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+#result-table tbody tr.active-row {
+    background-color: rgba(255, 255, 255, 0.2);
+    border-left: 4px solid #FFFF00;
+}

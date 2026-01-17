@@ -182,9 +182,7 @@ class DiagnosisSystem:
                 site, mission, insp = "Unknown", "Unknown", "Unknown"
             
             orig_name = os.path.splitext(os.path.basename(img_path))[0]
-            # [Fix] Create Unique Subdirectory per Task Run to prevent Result Mixing
-            unique_sub = f"task_{task_id}_{int(time.time())}"
-            target_dir = os.path.join(config.RESULT_BASE_DIR, site, mission, insp, unique_sub)
+            target_dir = os.path.join(config.RESULT_BASE_DIR, site, mission, insp)
             os.makedirs(target_dir, exist_ok=True)
             
             structured_res_path = os.path.join(target_dir, f"{orig_name}_result.jpg")
@@ -212,6 +210,166 @@ class DiagnosisSystem:
                     logger.info(f"🔄 Renaming Label: '{det['label']}' -> '{matched_target}'")
                     det['label'] = matched_target
                 det['used'] = False
+
+            # 5. 적응형 정렬 및 매칭 (Adaptive Sorting)
+            excel_rear = [p for p in points if p.facility_2 and '(rear)' in p.facility_2]
+            excel_front = [p for p in points if p not in excel_rear]
+            
+            front_reqs = Counter([p.inspection_point_type for p in excel_front])
+            rear_reqs = Counter([p.inspection_point_type for p in excel_rear])
+            
+            candidates_by_label = {}
+            for d in all_detections:
+                matched_target_type = None
+                if d['label'] in expected_types:
+                    candidates_by_label.setdefault(d['label'], []).append(d)
+            
+            det_front_pool = []
+            det_rear_pool = []
+            for label, dets in candidates_by_label.items():
+                n_front = front_reqs.get(label, 0)
+                n_rear = rear_reqs.get(label, 0)
+                
+                if n_rear > 0:
+                    dets.sort(key=lambda d: d.get('area', 0), reverse=True)
+                else:
+                    dets.sort(key=lambda d: d['center_x'])
+                
+                det_front_pool.extend(dets[:n_front])
+                det_rear_pool.extend(dets[n_front : n_front+n_rear])
+
+            det_front_pool.sort(key=lambda d: d['center_x'])
+            det_rear_pool.sort(key=lambda d: d['center_x'])
+
+            # 6. 매칭 수행 및 시각화 작성
+            summary_list = []
+            
+            for depth_name, ex_bucket, det_bucket in [("Front", excel_front, det_front_pool), ("Rear", excel_rear, det_rear_pool)]:
+                available_dets = list(det_bucket)
+                logger.info(f"🔍 [Matching {depth_name}] Targets={[p.inspection_point_type for p in ex_bucket]} | Available={[d['label'] for d in available_dets]}")
+
+                for point in ex_bucket:
+                    target = point.inspection_point_type
+                    matched = next((d for i, d in enumerate(available_dets) if is_type_compatible(target, d['label'])), None)
+                    
+                    if not matched and target.upper().startswith("CLASS_"):
+                        h, w = img.shape[:2]
+                        matched = {'label': target, 'box': [0, 0, w, h], 'source': 'Virtual', 'used': True}
+                        logger.info(f"🔹 [Pt] Target='{target}' | Force-Match for VLM Analysis (Full Image)")
+                    
+                    if matched:
+                        matched['used'] = True
+                        available_dets = [d for d in available_dets if d is not matched]
+                        box_info = matched['box']
+                        
+                        # Spatial Rank Logic
+                        compatible_dets = [d for d in all_detections if is_type_compatible(target, d['label'])]
+                        sorted_x = sorted(compatible_dets, key=lambda d: d['center_x'])
+                        sorted_y = sorted(compatible_dets, key=lambda d: d['center_y'])
+                        try:
+                            rank_x = sorted_x.index(matched) + 1
+                            rank_y = sorted_y.index(matched) + 1
+                        except ValueError:
+                            rank_x, rank_y = 0, 0
+
+                        logger.info(f"✅ [Pt] Target='{target}' | Match='{matched['label']}' | Loc='{depth_name}' | Pos=(Left #{rank_x}, Top #{rank_y})")
+                    else:
+                        rank_x, rank_y = None, None
+                        box_info = [0, 0, 0, 0]
+                        logger.warning(f"❌ [Pt] Target='{target}' | Match='None' | Loc='{depth_name}' | Pos=(Left N/A, Top N/A)")
+
+                    final_val, final_status = "N/A", "UNKNOWN"
+                    is_norm = False
+                    
+                    if matched:
+                        # VLM / DG / Class Logic
+                        if target.upper().startswith("AG"):
+                            final_val, _, is_norm = evaluate_gauge_reading(matched, vars(point))
+                            final_val = str(round(final_val, 2))
+                            logger.info(f"   ⏱️ AG Value: {final_val}")
+                        
+                        elif target.upper().startswith("DG") or "DIGITAL" in target.upper() or "CLASS_" in target.upper():
+                            # ... (VLM Processing) ...
+                            # For brevity in restoration, assuming VLM logic is intact in user's valid matching logic block
+                            # But since I'm rewriting the whole loop, I must include full VLM logic here
+                            # Or reference a function? No, I must write it.
+                            
+                            is_class_item = "CLASS_" in target.upper()
+                            x1, y1, x2, y2 = map(int, box_info)
+                            h, w = img.shape[:2]
+                            x1, y1 = max(0, x1), max(0, y1)
+                            x2, y2 = min(w, x2), min(h, y2)
+                            
+                            crop = None
+                            if is_class_item: crop = img
+                            elif x2 > x1 and y2 > y1: crop = img[max(0, y1-10):min(h, y2+10), max(0, x1-10):min(w, x2+10)]
+                            
+                            if crop is not None:
+                                prompt = config.VLM_PROMPTS.get(target, config.VLM_PROMPTS.get("DEFAULT"))
+                                # Fallback prompt search
+                                if prompt == config.VLM_PROMPTS.get("DEFAULT"):
+                                    for key, p_text in config.VLM_PROMPTS.items():
+                                        if key in target: prompt = p_text; break
+                                
+                                vlm_resp = self.vlm_inspector.analyze_crop(crop, prompt=prompt)
+                                matched['value'] = str(vlm_resp).replace("\n", " | ").strip() if vlm_resp else "No Read"
+                            else:
+                                matched['value'] = "Crop Fail"
+                            
+                            if is_class_item:
+                                final_val = matched['value']
+                                logger.info(f"   📝 Class Result: {final_val}")
+                                val_lower = str(final_val).lower()
+                                bad_keywords = ["poor", "abnormal", "leakage(o)", "damage(o)", "corrosion(o)"]
+                                is_norm = not any(bad in val_lower for bad in bad_keywords)
+                            else:
+                                final_val = matched['value']
+                                logger.info(f"   🤖 DG Value: {final_val}")
+                                _, _, is_norm = evaluate_gauge_reading({'value': final_val, 'label': matched['label']}, vars(point))
+                                if final_val in ["No Read", "Crop Fail"]: is_norm = False
+
+                        else:
+                            is_norm, reason = self.sw_led_inspector.check_status_compliance(matched['label'], target)
+                            final_val = "Found"
+                            logger.info(f"   🔎 Status: {final_val}")
+                        
+                        final_status = "PASS" if is_norm else "FAIL"
+                        draw_diagnosis_box(final_img, box_info, vars(point), matched['label'], final_status, value=final_val)
+                    
+                    else:
+                        final_val = "Not Found"
+                        final_status = "FAIL"
+
+                    # [Fix] Use Pre-calculated structured_res_path
+                    self._save_result(db, task.id, point, final_val, final_status, img_path, box_info, structured_res_path)
+                    summary_list.append({"type": target, "found": matched is not None})
+
+            # [User Request] Draw Unmatched (Unused) Detections as Gray Boxes
+            for d in all_detections:
+                if not d.get('used', False):
+                    x1, y1, x2, y2 = map(int, d['box'])
+                    gray_color = (128, 128, 128)
+                    cv2.rectangle(final_img, (x1, y1), (x2, y2), gray_color, 1)
+                    draw_outline_text(final_img, f"Unmatched: {d['label']}", (x1, y1 - 5), gray_color, font_scale=0.4)
+
+            # 7. 통합 결과 이미지 저장
+            draw_summary_table(final_img, summary_list)
+            
+            # [Fix] Save structured result (Image + JSON) using pre-calculated path
+            self.save_inspection_data(task, points[0] if points else None, final_img, summary_list, all_detections, img_path, structured_res_path)
+            
+            # [User Request] Show Result Window
+            cv2.imshow("Inspection Result", final_img)
+            cv2.waitKey(1)
+
+            task.data_result_dir = structured_res_path
+            task.state = DiagnosisState.COMPLETED
+            db.commit()
+            logger.info(f"✅ 태스크 {task_id} 처리 완료 (총 {len(points)}개 지점)")
+
+
+
+            # 5. 적응형 정렬 (Adaptive Sorting) - Logic continues here correctly
 
             # 5. 적응형 정렬 및 매칭 (Adaptive Sorting)
             excel_rear = [p for p in points if p.facility_2 and '(rear)' in p.facility_2]

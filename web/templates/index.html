@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Inspection Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body class="dark-theme">
+    <div class="container">
+        <!-- Control Panel -->
+        <header class="control-panel">
+            <div class="task-info">
+                <h1>AI Inspection Dashboard</h1>
+                <div class="info-grid">
+                    <span id="info-site">Site: -</span>
+                    <span id="info-mission">Mission: -</span>
+                    <span id="info-insp" class="highlight">Inspection: -</span>
+                    <span id="info-idx">Index: 0 / 0</span>
+                    <span id="status-indicator" class="badge">LIVE</span>
+                </div>
+            </div>
+            <div class="controls">
+                <button id="btn-prev" class="btn secondary">◀ Previous</button>
+                <button id="btn-live" class="btn primary">Live / Latest</button>
+                <button id="btn-push" class="btn primary">Start Inspection (Push)</button>
+                <button id="btn-next" class="btn secondary">Next ▶</button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="dashboard-grid">
+            <!-- Left: Visual Result -->
+            <section class="visual-section">
+                <div class="image-container">
+                    <img id="result-image" src="" alt="Waiting for result..." style="display:none;">
+                    <div id="highlight-box"></div>
+                    <div id="loading-overlay" style="display:none;">Analyzing...</div>
+                    <div id="placeholder-text">Press 'Start Inspection' to begin</div>
+                </div>
+            </section>
+
+            <!-- Right: Data Result -->
+            <section class="data-section">
+                <h2>Inspection Results</h2>
+                <div class="table-wrapper">
+                    <table id="result-table">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Value</th>
+                                <th>Judgment</th>
+                                <th>Pos (L,T)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Rows will be injected by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+
+</html>
