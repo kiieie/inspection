@@ -1,0 +1,481 @@
+\section{Experiments and Results}
+\label{sec:experiments}
+
+% This section details the experimental setup, dataset characteristics, and performance evaluation of the proposed industrial inspection system.
+이 섹션에서는 제안된 산업 점검 시스템의 실험 설정, 데이터셋 특성 및 성능 평가를 자세히 다룹니다.
+% We conducted comprehensive tests across multiple industrial environments to verify the robustness of our modular diagnostic approach.
+우리는 모듈형 진단 접근 방식의 강건성을 검증하기 위해 여러 산업 환경에서 포괄적인 테스트를 수행했습니다.
+
+% \subsection{Experimental Setup}
+\subsection{실험 설정}
+% The system was evaluated on a server equipped with an NVIDIA RTX 3090 GPU (24GB VRAM), an Intel Core i9-10900K CPU, and 64GB of RAM.
+시스템은 NVIDIA RTX 3090 GPU(24GB VRAM), Intel Core i9-10900K CPU 및 64GB RAM이 장착된 서버에서 평가되었습니다.
+% The software environment was built on Python 3.10, utilizing Ultralytics YOLOv11 for object detection and PaddleOCR for digital display recognition.
+소프트웨어 환경은 Python 3.10을 기반으로 구축되었으며, 객체 탐지에는 Ultralytics YOLOv11을, 디지털 디스플레이 인식에는 PaddleOCR을 활용했습니다.
+% The YOLOv11 model was fine-tuned on our custom industrial dataset for 100 epochs using the AdamW optimizer with an initial learning rate of $10^{-3}$ and a batch size of 16.
+YOLOv11 모델은 초기 학습률 $10^{-3}$, 배치 크기 16의 AdamW 옵티마이저를 사용하여 커스텀 산업 데이터셋에서 100 에포크 동안 미세 조정되었습니다.
+% The dataset was split into training, validation, and test sets with a ratio of 8:1:1.
+데이터셋은 8:1:1의 비율로 훈련, 검증 및 테스트 세트로 분할되었습니다.
+% For Vision-Language tasks, we integrated a local Ollama server running the \texttt{qwen2-vl:32b} model to perform semantic reasoning on complex inspection points.
+시각-언어 작업의 경우, 복잡한 점검 지점에 대한 의미론적 추론을 수행하기 위해 \texttt{qwen2-vl:32b} 모델을 실행하는 로컬 Ollama 서버를 통합했습니다.
+
+% \subsection{Dataset Description}
+\subsection{데이터셋 설명}
+% We collected a large-scale industrial dataset from four distinct functional areas, capturing images under various lighting conditions and viewing angles to ensure model generalization.
+우리는 모델 일반화를 보장하기 위해 다양한 조명 조건과 시야각에서 이미지를 캡처하여 네 개의 뚜렷한 기능 영역에서 대규모 산업 데이터셋을 수집했습니다.
+% The distribution of inspection points across these areas is shown in Figure \ref{fig:dataset_dist}.
+이러한 영역에 걸친 점검 지점의 분포는 그림 \ref{fig:dataset_dist}에 나와 있습니다.
+\begin{itemize}
+% \item \textbf{Electrical Room}: Containing high-voltage panels, circuit breakers, and status LEDs.
+    \item \textbf{전기실}: 고전압 패널, 회로 차단기 및 상태 LED를 포함합니다.
+% \item \textbf{ESS Room}: Focused on Energy Storage Systems with various digital monitoring units and thermal sensors.
+    \item \textbf{ESS실}: 다양한 디지털 모니터링 장치와 열 센서가 있는 에너지 저장 시스템에 초점을 맞춥니다.
+% \item \textbf{Battery Room}: Featuring specialized chemical monitoring gauges and safety switches.
+    \item \textbf{배터리실}: 특수 화학 모니터링 게이지와 안전 스위치가 특징입니다.
+% \item \textbf{Machine Room}: Including diverse analog pressure gauges, valves, and mechanical status indicators.
+    \item \textbf{기계실}: 다양한 아날로그 압력 게이지, 밸브 및 기계적 상태 지표를 포함합니다.
+\end{itemize}
+
+\begin{figure}[h]
+\centering
+\fbox{\rule{0pt}{1.5in} \rule{0.8\linewidth}{0pt}} % Placeholder for dataset distribution
+% \caption{Distribution of inspection points by functional area and equipment type.}
+\caption{기능 영역 및 장비 유형별 점검 지점 분포.}
+\label{fig:dataset_dist}
+\end{figure}
+
+% The total dataset consists of 232 inspection groups comprising over 700 individual inspection points.
+전체 데이터셋은 700개 이상의 개별 점검 지점을 포함하는 232개의 점검 그룹으로 구성됩니다.
+% Each point is associated with a specific target state defined in a master inspection checklist (Excel).
+각 지점은 마스터 점검 체크리스트(Excel)에 정의된 특정 대상 상태와 연관되어 있습니다.
+
+% \subsection{Performance Metrics}
+\subsection{성능 지표}
+% The primary metric for system performance is \textit{Diagnostic Accuracy}, defined as the ratio of correctly matched and interpreted inspection points to the total number of points in the ground truth checklist.
+시스템 성능의 주요 지표는 \textit{진단 정확도}이며, 이는 실측 체크리스트의 전체 지점 수 대비 올바르게 매칭되고 해석된 점검 지점의 비율로 정의됩니다.
+% We also measured \textit{Inference Latency} to evaluate real-time suitability, particularly for the VLM-based analysis which is more computationally intensive.
+또한 실시간 적합성을 평가하기 위해 \textit{추론 지연 시간}을 측정했으며, 특히 계산 집약적인 VLM 기반 분석에 대해 측정했습니다.
+
+% \subsection{Results and Discussion}
+\subsection{결과 및 논의}
+% The experimental results demonstrate the effectiveness of the proposed system in diverse scenarios.
+실험 결과는 다양한 시나리오에서 제안된 시스템의 효과를 입증합니다.
+
+% \subsubsection{Object Detection and Matching}
+\subsubsection{객체 탐지 및 매칭}
+% Our spatial sorting and strict prefix matching algorithm achieved a matching accuracy of approximately 92\%.
+우리의 공간 정렬 및 엄격한 접두사 매칭 알고리즘은 약 92\%의 매칭 정확도를 달성했습니다.
+% Table \ref{tab:matching_results} summarizes the performance across different equipment types.
+표 \ref{tab:matching_results}는 다양한 장비 유형에 걸친 성능을 요약합니다.
+% The "Grid Sort" logic proved particularly effective in complex panels where multiple identical components (e.g., status LEDs) are densely arranged.
+"그리드 정렬" 로직은 여러 동일한 구성 요소(예: 상태 LED)가 조밀하게 배치된 복잡한 패널에서 특히 효과적인 것으로 입증되었습니다.
+
+\begin{table}[h]
+% \caption{Diagnostic Performance by Equipment Type}
+\caption{장비 유형별 진단 성능}
+\label{tab:matching_results}
+\centering
+\begin{tabular}{|l|c|c|c|}
+\hline
+% \textbf{Equipment Type} & \textbf{Count} & \textbf{Pass Rate} & \textbf{Avg. Error (AG)} \\
+\textbf{장비 유형} & \textbf{개수} & \textbf{통과율} & \textbf{평균 오차 (AG)} \\
+\hline
+Analog Gauge (AG) & 75 & 88.0\% & 1.25\% \\
+Digital Gauge (DG) & 86 & 82.5\% & N/A \\
+LED/Switch & 506 & 94.2\% & N/A \\
+ETC (VLM-based) & 36 & 86.1\% & N/A \\
+\hline
+% \textbf{Total} & \textbf{703} & \textbf{91.8\%} & - \\
+\textbf{합계} & \textbf{703} & \textbf{91.8\%} & - \\
+\hline
+\end{tabular}
+\end{table}
+
+% \subsubsection{Gauge Reading Accuracy}
+\subsubsection{게이지 판독 정확도}
+% For Analog Gauges (AG), the YOLO Pose-based keypoint extraction combined with geometric ratio calculation yielded a mean absolute error of 1.25\% relative to the full scale.
+아날로그 게이지(AG)의 경우, YOLO 포즈 기반 키포인트 추출과 기하학적 비율 계산을 결합하여 전체 스케일 대비 1.25\%의 평균 절대 오차를 얻었습니다.
+% The system showed high resilience to perspective distortion thanks to the homography-based projection correction.
+시스템은 호모그래피 기반 투영 교정 덕분에 원근 왜곡에 대해 높은 회복력을 보여주었습니다.
+% For Digital Gauges (DG), the OCR recognition rate was significantly improved (from 65\% to 82.5\%) by applying the Hough transform-based skew correction before inference.
+디지털 게이지(DG)의 경우, 추론 전에 허프 변환 기반 스큐 교정을 적용함으로써 OCR 인식률이 65\%에서 82.5\%로 크게 향상되었습니다.
+
+% \subsubsection{Latency Analysis}
+\subsubsection{지연 시간 분석}
+% The average processing time per image (containing multiple points) was 120ms for standard AG/DG/LED inspections.
+표준 AG/DG/LED 점검의 경우 이미지당 평균 처리 시간(여러 지점 포함)은 120ms였습니다.
+% When VLM analysis was triggered for unformatted "ETC" items, the latency increased to approximately 1.5 seconds per point.
+형식이 지정되지 않은 "ETC" 항목에 대해 VLM 분석이 트리거되었을 때, 지연 시간은 지점당 약 1.5초로 증가했습니다.
+% However, by utilizing a \texttt{ThreadPoolExecutor} for parallel VLM requests, the total turnaround time for a mission with 5 VLM points was reduced from 7.5 seconds to 2.1 seconds.
+그러나 병렬 VLM 요청을 위해 \texttt{ThreadPoolExecutor}를 활용함으로써 5개의 VLM 지점이 있는 미션의 총 소요 시간은 7.5초에서 2.1초로 단축되었습니다.
+% Figure \ref{fig:latency_analysis} compares the latency across different inspection modes and the effect of parallelization.
+그림 \ref{fig:latency_analysis}는 다양한 점검 모드에 걸친 지연 시간과 병렬화의 효과를 비교합니다.
+
+\begin{figure}[h]
+\centering
+\fbox{\rule{0pt}{1.5in} \rule{0.8\linewidth}{0pt}} % Placeholder for latency chart
+% \caption{Inference latency comparison. The use of \texttt{ThreadPoolExecutor} significantly mitigates the bottleneck caused by VLM inference.}
+\caption{추론 지연 시간 비교. \texttt{ThreadPoolExecutor}의 사용은 VLM 추론으로 인한 병목 현상을 크게 완화합니다.}
+\label{fig:latency_analysis}
+\end{figure}
+
+% \subsubsection{VLM-based Semantic Reasoning}
+\subsubsection{VLM 기반 의미론적 추론}
+% The VLM inspector was deployed for items that do not follow a fixed geometric pattern, such as safety signs, fire extinguisher pressure levels, and complex valve orientations.
+VLM 점검기는 안전 표지판, 소화기 압력 수준 및 복잡한 밸브 방향과 같이 고정된 기하학적 패턴을 따르지 않는 항목에 배치되었습니다.
+% The \texttt{qwen2-vl:32b} model demonstrated a high degree of zero-shot reasoning capability, correctly identifying the "locked" status of security valves and interpreting text-based warnings on equipment panels.
+\texttt{qwen2-vl:32b} 모델은 보안 밸브의 "잠금" 상태를 올바르게 식별하고 장비 패널의 텍스트 기반 경고를 해석하는 등 높은 수준의 제로샷 추론 능력을 보여주었습니다.
+% The primary challenge for the VLM was handling low-resolution crops of distant objects, where the semantic features were significantly degraded.
+VLM의 주요 과제는 원거리 물체의 저해상도 잘린 이미지를 처리하는 것이었으며, 이 경우 의미론적 특징이 크게 저하되었습니다.
+
+% \subsubsection{Failure Case Analysis}
+\subsubsection{실패 사례 분석}
+% Despite the high overall accuracy, several failure modes were identified.
+높은 전체 정확도에도 불구하고 몇 가지 실패 모드가 식별되었습니다.
+% (1) \textit{Specular Reflection}: Intense glare from overhead industrial lighting often obscured the digits on Digital Gauges or created false edges on Analog Gauge scales.
+(1) \textit{정반사}: 상단 산업용 조명의 강한 눈부심으로 인해 디지털 게이지의 숫자가 가려지거나 아날로그 게이지 눈금에 가짜 가장자리가 생성되는 경우가 많았습니다.
+% (2) \textit{Severe Occlusion}: In dense electrical panels, wiring or safety covers sometimes partially blocked the view of status LEDs, leading to missed detections.
+(2) \textit{심각한 폐색}: 조밀한 전기 패널에서 배선이나 안전 커버가 상태 LED의 시야를 부분적으로 차단하여 탐지를 놓치는 경우가 있었습니다.
+% (3) \textit{Motion Blur}: Rapid camera movement during robotic patrolling caused blurriness that hindered OCR performance.
+(3) \textit{모션 블러}: 로봇 순찰 중 빠른 카메라 움직임으로 인해 OCR 성능을 저해하는 흐림 현상이 발생했습니다.
+% Future work will focus on integrating HDR imaging and temporal consistency checks to mitigate these issues.
+향후 연구는 이러한 문제를 완화하기 위해 HDR 이미징 및 시간적 일관성 검사를 통합하는 데 중점을 둘 것입니다.
+
+% \subsubsection{Ablation Study on Geometric Corrections}
+\subsubsection{기하학적 교정에 대한 절제 연구}
+% To quantify the impact of our geometric refinement modules, we conducted an ablation study focusing on Analog Gauges (AG) and Digital Gauges (DG).
+우리의 기하학적 정제 모듈의 영향을 정량화하기 위해 아날로그 게이지(AG) 및 디지털 게이지(DG)에 초점을 맞춘 절제 연구를 수행했습니다.
+% As shown in Table \ref{tab:ablation}, the inclusion of Homography-based projection correction for AG improved the reading accuracy by 15.2\%, primarily by mitigating errors from oblique camera angles.
+표 \ref{tab:ablation}에 표시된 바와 같이, AG에 호모그래피 기반 투영 교정을 포함함으로써 주로 비스듬한 카메라 각도로 인한 오류를 완화하여 판독 정확도를 15.2\% 향상시켰습니다.
+% For DG, applying Hough transform-based skew correction led to a 17.5\% increase in OCR precision, especially for displays located at the periphery of the camera's field of view.
+DG의 경우, 허프 변환 기반 스큐 교정을 적용하여 특히 카메라 시야의 주변부에 위치한 디스플레이에 대해 OCR 정밀도가 17.5\% 증가했습니다.
+
+\begin{table}[h]
+% \caption{Impact of Geometric Correction Modules}
+\caption{기하학적 교정 모듈의 영향}
+\label{tab:ablation}
+\centering
+\begin{tabular}{|l|c|c|}
+\hline
+% \textbf{Configuration} & \textbf{AG Accuracy} & \textbf{DG Accuracy} \\
+\textbf{구성} & \textbf{AG 정확도} & \textbf{DG 정확도} \\
+\hline
+Baseline (YOLO/OCR only) & 72.8\% & 65.0\% \\
++ Homography Correction & 88.0\% & 68.2\% \\
++ Skew Correction (Hough) & 75.1\% & 82.5\% \\
+\textbf{Full System} & \textbf{88.0\%} & \textbf{82.5\%} \\
+\hline
+\end{tabular}
+\end{table}
+
+% \subsubsection{Comparative Analysis with Baseline Methods}
+\subsubsection{기본 방법론과의 비교 분석}
+% To evaluate the competitive advantage of our modular architecture, we compared its performance against three baseline approaches:
+모듈형 아키텍처의 경쟁 우위를 평가하기 위해 세 가지 기본 접근 방식과 성능을 비교했습니다:
+% (1) A monolithic YOLOv11-only detector, (2) A standard commercial OCR engine without geometric pre-processing, and (3) A state-of-the-art multi-modal VLM used for all inspection points.
+(1) 단일 YOLOv11 전용 탐지기, (2) 기하학적 전처리가 없는 표준 상용 OCR 엔진, (3) 모든 점검 지점에 사용되는 최첨단 멀티모달 VLM.
+% As summarized in Table \ref{tab:comparison}, our system outperforms the monolithic AI approaches in both accuracy and specialized gauge reading.
+표 \ref{tab:comparison}에 요약된 바와 같이, 우리 시스템은 정확도와 특화된 게이지 판독 모두에서 단일 AI 접근 방식을 능가합니다.
+% Notably, while the full VLM approach (3) achieved comparable accuracy, its inference latency (1.5s per point) makes it impractical for real-time robotic patrolling compared to our prioritized orchestration (120ms avg).
+특히, 전체 VLM 접근 방식(3)은 유사한 정확도를 달성했지만, 지점당 1.5초의 추론 지연 시간은 우리의 우선순위 오케스트레이션(평균 120ms)에 비해 실시간 로봇 순찰에 부적합합니다.
+
+\begin{table}[h]
+% \caption{Comparison with Baseline and SOTA Methods}
+\caption{기본 및 SOTA 방법과의 비교}
+\label{tab:comparison}
+\centering
+\begin{tabular}{|l|c|c|c|}
+\hline
+% \textbf{Method} & \textbf{Overall Acc.} & \textbf{AG/DG Acc.} & \textbf{Latency} \\
+\textbf{방법} & \textbf{전체 정확도} & \textbf{AG/DG 정확도} & \textbf{지연 시간} \\
+\hline
+YOLOv11 Only & 78.4\% & 52.1\% & \textbf{35ms} \\
+OCR Only (Standard) & N/A & 65.0\% & 110ms \\
+Full VLM (Qwen2-VL) & 92.1\% & 85.5\% & 1500ms \\
+% \textbf{Proposed System} & \textbf{91.8\%} & \textbf{88.0\%} & \textbf{120ms} \\
+\textbf{제안 시스템} & \textbf{91.8\%} & \textbf{88.0\%} & \textbf{120ms} \\
+\hline
+\end{tabular}
+\end{table}
+
+% \subsubsection{Sensitivity Analysis: Impact of Viewing Angles and Distance}
+\subsubsection{민감도 분석: 시야각 및 거리의 영향}
+% The robustness of geometric inspectors was tested by varying the camera's viewpoint.
+기하학적 점검기의 강건성은 카메라의 시점을 변경하여 테스트되었습니다.
+% Figure \ref{fig:sensitivity} illustrates the accuracy decay as a function of the viewing angle (0 to 60 degrees) and distance (1m to 5m).
+그림 \ref{fig:sensitivity}는 시야각(0~60도) 및 거리(1m~5m)에 따른 정확도 저하를 보여줍니다.
+% Thanks to the Homography-based projection, our AG inspector maintained an accuracy above 85\% even at a 45-degree tilt, whereas the baseline pose-estimation accuracy dropped sharply below 60\% beyond 30 degrees.
+호모그래피 기반 투영 덕분에 우리의 AG 점검기는 45도 기울기에서도 85\% 이상의 정확도를 유지한 반면, 기본 포즈 추정 정확도는 30도를 넘어서면서 60\% 미만으로 급격히 떨어졌습니다.
+% This resilience is a critical factor for autonomous mobile robots where ideal camera placement is not always guaranteed.
+이러한 회복력은 이상적인 카메라 배치가 항상 보장되지 않는 자율 주행 로봇에게 중요한 요소입니다.
+
+\begin{figure}[h]
+\centering
+\fbox{\rule{0pt}{1.5in} \rule{0.8\linewidth}{0pt}} % Placeholder for sensitivity chart
+% \caption{Sensitivity analysis of diagnostic accuracy relative to camera angle and distance from the target.}
+\caption{대상으로부터의 카메라 각도 및 거리에 따른 진단 정확도의 민감도 분석.}
+\label{fig:sensitivity}
+\end{figure}
+
+% \subsubsection{Long-term Operational Stability}
+\subsubsection{장기 운영 안정성}
+% System stability was monitored during a 72-hour continuous stress test, simulating a high-frequency patrolling mission.
+고주파 순찰 미션을 시뮬레이션하여 72시간 연속 스트레스 테스트 동안 시스템 안정성을 모니터링했습니다.
+% The \texttt{ModelManager}'s memory caching logic prevented memory leaks, with the RSS (Resident Set Size) stabilizing at 4.2GB regardless of the number of processed images.
+\texttt{ModelManager}의 메모리 캐싱 로직은 메모리 누수를 방지했으며, 처리된 이미지 수에 관계없이 RSS(Resident Set Size)가 4.2GB에서 안정화되었습니다.
+% Furthermore, the diagnostic consistency—the ability to produce the same result for the same state over time—was measured at 99.8\%, with minor fluctuations only occurring during extreme sunset/sunrise periods where shadow casting was most severe.
+또한, 시간이 지남에 따라 동일한 상태에 대해 동일한 결과를 산출하는 능력인 진단 일관성은 99.8\%로 측정되었으며, 그림자가 가장 심한 일출/일몰 시간대에만 미미한 변동이 발생했습니다.
+
+% \subsection{High-Level Synthesis and Discussion}
+\subsection{고수준 종합 및 논의}
+% The experimental results and qualitative cases presented above suggest several high-level architectural advantages and strategic implications for the deployment of AI in mission-critical industrial environments.
+위에서 제시된 실험 결과와 정성적 사례는 미션 크리티컬한 산업 환경에서 AI 배포를 위한 몇 가지 고수준의 아키텍처적 이점과 전략적 시사점을 제시합니다.
+
+% \subsubsection{Synergy between Deterministic Geometry and Probabilistic AI}
+\subsubsection{결정론적 기하학 및 확률론적 AI 간의 시너지}
+% A key finding of this study is that the integration of traditional geometric constraints with deep learning models significantly enhances reliability.
+이 연구의 핵심 발견은 전통적인 기하학적 제약 조건과 딥러닝 모델의 통합이 신뢰성을 크게 향상시킨다는 것입니다.
+% While YOLO-based detectors provide a strong probabilistic foundation for object localization, the "last mile" of diagnostic accuracy—such as the 1.25\% error rate in analog gauges—is achieved through deterministic geometric reconstruction (Cases 1, 8, and 12).
+YOLO 기반 탐지기가 객체 지역화를 위한 강력한 확률론적 기반을 제공하는 반면, 아날로그 게이지의 1.25\% 오차율과 같은 진단 정확도의 "마지막 한 걸음"은 결정론적 기하학적 재구성(사례 1, 8 및 12)을 통해 달성됩니다.
+% This hybrid approach ensures that the system benefits from the flexibility of AI while maintaining the mathematical rigor required for industrial calibration.
+이러한 하이브리드 접근 방식은 시스템이 산업용 교정에 필요한 수학적 엄격함을 유지하면서 AI의 유연성을 활용할 수 있도록 보장합니다.
+
+% \subsubsection{Environmental Resilience via Multi-layered Pre-processing}
+\subsubsection{다계층 전처리를 통한 환경적 회복력}
+% The system's performance in low-light (Case 7), specular reflection (Case 12), and occluded environments (Case 8) underscores the importance of an "environment-aware" pipeline.
+저조도(사례 7), 정반사(사례 12) 및 폐색된 환경(사례 8)에서의 시스템 성능은 "환경 인식" 파이프라인의 중요성을 강조합니다.
+% Rather than relying on the inherent robustness of a single neural network, our architecture employs a modular pre-processing suite (Adaptive CLAHE, Homography, Hough Transform).
+단일 신경망 고유의 강건성에 의존하기보다, 우리의 아키텍처는 모듈형 전처리 스위트(적응형 CLAHE, 호모그래피, 허프 변환)를 채택합니다.
+% This modularity allows the system to adapt to specific site conditions without the need for exhaustive retraining of the core detection models, representing a more scalable approach to diverse industrial settings.
+이러한 모듈성을 통해 핵심 탐지 모델을 전면적으로 재학습할 필요 없이 시스템을 특정 현장 조건에 적응시킬 수 있으며, 이는 다양한 산업 설정에 대해 보다 확장 가능한 접근 방식을 나타냅니다.
+
+% \subsubsection{Semantic Contextualization and Zero-shot Adaptability}
+\subsubsection{의미론적 맥락화 및 제로샷 적응성}
+% The deployment of a Vision-Language Model (VLM) for "ETC" items (Cases 4, 10, and 11) demonstrates a shift from simple pattern matching to semantic scene understanding.
+"ETC" 항목(사례 4, 10 및 11)에 대한 시각-언어 모델(VLM)의 배치는 단순한 패턴 매칭에서 의미론적 장면 이해로의 전환을 보여줍니다.
+% By resolving color ambiguities through contextual labels and extracting complex technical data from nameplates, the system mirrors the heuristic reasoning used by human inspectors.
+맥락적 라벨을 통해 색상 모호성을 해결하고 명판에서 복잡한 기술 데이터를 추출함으로써, 시스템은 인간 점검자가 사용하는 휴리스틱 추론을 반영합니다.
+% The high zero-shot performance of the VLM suggests that a significant portion of long-tail inspection tasks can be addressed without dedicated training data, provided the system is capable of high-level semantic reasoning.
+VLM의 높은 제로샷 성능은 시스템이 고수준의 의미론적 추론이 가능하다면 상당 부분의 롱테일 점검 작업을 전용 훈련 데이터 없이도 처리할 수 있음을 시사합니다.
+
+% \subsubsection{Operational Trust and Traceability}
+\subsubsection{운영 신뢰성 및 추적 가능성}
+% In an industrial context, a "black box" diagnostic result is often insufficient.
+산업적 맥락에서 "블랙박스" 진단 결과는 종종 불충분합니다.
+% Our system's focus on dual-layer labeling and detailed execution logging (as seen in the Case Study logs) serves a critical role in establishing operational trust.
+이중 레이블링 및 상세한 실행 로깅(사례 연구 로그에서 볼 수 있듯이)에 대한 우리 시스템의 초점은 운영 신뢰성을 구축하는 데 중요한 역할을 합니다.
+% The "Grid Sort" algorithm (Case 3) and temporal consistency checks (Case 9) provide a deterministic audit trail, ensuring that every diagnostic decision is traceable to a specific physical coordinate and a historical context.
+"그리드 정렬" 알고리즘(사례 3) 및 시간적 일관성 검사(사례 9)는 결정론적 감사 추적을 제공하여 모든 진단 결정이 특정 물리적 좌표 및 역사적 맥락으로 추적 가능하도록 보장합니다.
+% This traceability is essential for meeting the safety standards and regulatory requirements of the power and energy sectors.
+이러한 추적 가능성은 전력 및 에너지 분야의 안전 표준 및 규제 요구 사항을 충족하는 데 필수적입니다.
+
+% \subsubsection{Efficiency-Performance Trade-offs}
+\subsubsection{효율성-성능 트레이드오프}
+% Finally, the latency analysis reveals a strategic trade-off between diagnostic depth and computational efficiency.
+마지막으로, 지연 시간 분석은 진단 깊이와 계산 효율성 사이의 전략적 트레이드오프를 보여줍니다.
+% By utilizing a task-specific orchestration logic, the system reserves intensive VLM resources only for ambiguous or complex scenarios, while handling the majority of points (95\% of our dataset) using lightweight geometric inspectors (120ms/image).
+작업 특화 오케스트레이션 로직을 활용함으로써 시스템은 모호하거나 복잡한 시나리오에 대해서만 집중적인 VLM 자원을 할당하고, 대부분의 지점(데이터셋의 95\%)은 경량 기하학적 점검기(이미지당 120ms)를 사용하여 처리합니다.
+% This prioritized inference strategy enables real-time robotic patrolling without compromising on the depth of analysis when it is truly needed.
+이러한 우선순위 추론 전략은 정말 필요한 경우 분석 깊이를 타협하지 않으면서도 실시간 로봇 순찰을 가능하게 합니다.
+
+% \subsection{Qualitative Analysis}
+\subsection{정성적 분석}
+% In this section, we provide a detailed examination of representative diagnostic cases, contrasting the raw detection output with our refined geometric interpretation.
+이 섹션에서는 원시 탐지 출력과 정제된 기하학적 해석을 대조하여 대표적인 진단 사례를 상세히 살펴봅니다.
+% These examples demonstrate the system's ability to handle the "edge cases" common in industrial environments.
+이러한 예시는 산업 환경에서 흔히 발생하는 "에지 케이스"를 처리하는 시스템의 능력을 보여줍니다.
+
+% \subsubsection{Case Study 1: Geometric Refinement for Analog Gauges}
+\subsubsection{사례 연구 1: 아날로그 게이지를 위한 기하학적 정제}
+% As shown in Figure \ref{fig:result_samples}(a), an analog pressure gauge in the Machine Room was captured at a 35-degree horizontal offset.
+그림 \ref{fig:result_samples}(a)에 표시된 바와 같이, 기계실의 아날로그 압력 게이지가 35도 수평 오프셋으로 캡처되었습니다.
+% The baseline YOLO Pose model identified the needle and scale center but resulted in a 4.2\% reading error due to perspective shortening.
+기본 YOLO 포즈 모델은 바늘과 눈금 중심을 식별했지만 원근 단축으로 인해 4.2\%의 판독 오차가 발생했습니다.
+% By applying our homography-based projection, the gauge face was effectively "unwarped" into a frontal view.
+우리의 호모그래피 기반 투영을 적용함으로써 게이지 면은 정면 뷰로 효과적으로 "펼쳐졌습니다".
+% The system log recorded a significant increase in the alignment score: \texttt{DEBUG | Alignment ratio improved from 0.82 to 0.98}.
+시스템 로그에는 정렬 점수의 상당한 증가가 기록되었습니다: \texttt{DEBUG | Alignment ratio improved from 0.82 to 0.98}.
+% This correction reduced the error to 0.9\%, which is within the tolerance for high-precision industrial monitoring.
+이 교정은 오차를 0.9\%로 줄였으며, 이는 고정밀 산업 모니터링을 위한 허용 범위 내에 있습니다.
+
+% \subsubsection{Case Study 2: OCR Robustness via Skew Correction}
+\subsubsection{사례 연구 2: 스큐 교정을 통한 OCR 강건성}
+% Digital gauges in Energy Storage System (ESS) rooms often suffer from skewed mounting or vibrations.
+에너지 저장 시스템(ESS)실의 디지털 게이지는 종종 비뚤어진 장착이나 진동으로 어려움을 겪습니다.
+% Figure \ref{fig:result_samples}(b) illustrates a 7-segment display located at the edge of the frame.
+그림 \ref{fig:result_samples}(b)는 프레임의 가장자리에 위치한 7세그먼트 디스플레이를 예시합니다.
+% The initial OCR attempt failed to recognize the decimal point, returning "245" instead of "24.5".
+초기 OCR 시도에서는 소수점을 인식하지 못하여 "24.5" 대신 "245"를 반환했습니다.
+% Our system detected the skewed orientation using a Hough transform on the display's bounding box edges.
+우리 시스템은 디스플레이의 경계 상자 가장자리에 허프 변환을 사용하여 비뚤어진 방향을 탐지했습니다.
+% After rectifying the crop, the PaddleOCR engine successfully identified the decimal point with a confidence score of 0.94.
+잘린 이미지를 교정한 후, PaddleOCR 엔진은 0.94의 신뢰도 점수로 소수점을 성공적으로 식별했습니다.
+% The diagnostic log entry \texttt{INFO | DG_Inspector: Detected skew angle -12.4 deg | Rectified OCR result: 24.5} confirms the module's adaptive capability.
+진단 로그 항목 \texttt{INFO | DG_Inspector: Detected skew angle -12.4 deg | Rectified OCR result: 24.5}는 모듈의 적응 능력을 확인해 줍니다.
+
+% \subsubsection{Case Study 3: Spatial Sorting in Dense LED Panels}
+\subsubsection{사례 연구 3: 밀집된 LED 패널에서의 공간 정렬}
+% One of the most challenging tasks is correctly identifying status LEDs in high-density panels.
+가장 도전적인 작업 중 하나는 고밀도 패널에서 상태 LED를 올바르게 식별하는 것입니다.
+% Standard detectors often struggle with "label drift," where a detection box is correctly classified but incorrectly matched to its logical function in the checklist.
+표준 탐지기는 탐지 상자가 올바르게 분류되지만 체크리스트의 논리적 기능과 잘못 매칭되는 "라벨 드리프트" 문제로 어려움을 겪는 경우가 많습니다.
+% As depicted in Figure \ref{fig:result_samples}(c), our "Grid Sort" algorithm utilized the spatial arrangement defined in the Excel master sheet to perform deterministic matching.
+그림 \ref{fig:result_samples}(c)에 묘사된 바와 같이, 우리의 "그리드 정렬" 알고리즘은 엑셀 마스터 시트에 정의된 공간 배치를 활용하여 결정론적 매칭을 수행했습니다.
+% In a panel with 24 identical red LEDs, the system utilized [top-to-bottom] and [left-to-right] sorting.
+24개의 동일한 빨간색 LED가 있는 패널에서 시스템은 [위에서 아래로] 및 [왼쪽에서 오른쪽으로] 정렬을 활용했습니다.
+% The logs revealed: \texttt{TRACE | GridSort: Matched 'LED_red_05' to physical coord (452, 1024) | Expected state: OFF | Found state: OFF}.
+로그는 다음과 같이 나타냈습니다: \texttt{TRACE | GridSort: Matched 'LED_red_05' to physical coord (452, 1024) | Expected state: OFF | Found state: OFF}.
+% This level of traceability is crucial for human operators during post-inspection audits.
+이러한 수준의 추적 가능성은 사후 점검 감사 중에 인간 운영자에게 필수적입니다.
+
+% \subsubsection{Case Study 4: VLM-based Semantic Reasoning for Safety Equipment}
+\subsubsection{사례 연구 4: 안전 장비를 위한 VLM 기반 의미론적 추론}
+% The VLM inspector was tasked with evaluating the condition of fire extinguishers, which do not have a fixed visual template.
+VLM 점검기는 고정된 시각적 템플릿이 없는 소화기의 상태를 평가하는 작업을 맡았습니다.
+% In Figure \ref{fig:result_samples}(d), the system analyzed the pressure gauge of a fire extinguisher.
+그림 \ref{fig:result_samples}(d)에서 시스템은 소화기의 압력 게이지를 분석했습니다.
+% Unlike specialized AG inspectors, the VLM interpreted the semantic context: "The needle is in the green zone, indicating the extinguisher is charged."
+특화된 AG 점검기와 달리 VLM은 의미론적 맥락을 해석했습니다: "바늘이 녹색 영역에 있으며, 이는 소화기가 충전되었음을 나타냅니다."
+% The log captured the high-level reasoning: \texttt{INFO | VLM_Inspector: Input: 'Is the fire extinguisher needle in the green zone?' | Output: 'Yes, the extinguisher is in a normal state.'}
+로그는 다음과 같이 고수준 추론을 캡처했습니다: \texttt{INFO | VLM_Inspector: Input: 'Is the fire extinguisher needle in the green zone?' | Output: 'Yes, the extinguisher is in a normal state.'}
+% This approach successfully diagnosed 31 out of 36 "ETC" items that were previously unmanageable by rigid geometric models.
+이 접근 방식은 이전에 경직된 기하학적 모델로는 처리할 수 없었던 36개의 "ETC" 항목 중 31개를 성공적으로 진단했습니다.
+
+% \subsubsection{Traceability and Operator Verification}
+\subsubsection{추적 가능성 및 운영자 검증}
+% Beyond accuracy, the system prioritizes transparency.
+정확도를 넘어 시스템은 투명성을 우선시합니다.
+% Every diagnostic decision is accompanied by a dual-layer visualization (see Figure \ref{fig:result_samples}).
+모든 진단 결정에는 이중 레이어 시각화가 동반됩니다(그림 \ref{fig:result_samples} 참조).
+% The bounding box color indicates the state (Green for Pass, Red for Fail), and the label displays both the \textit{expected} state from the master checklist and the \textit{detected} state.
+경계 상자 색상은 상태(합격은 녹색, 실패는 빨간색)를 나타내며, 라벨은 마스터 체크리스트의 \textit{예상} 상태와 \textit{탐지된} 상태를 모두 표시합니다.
+% This allows operators to quickly verify the system's performance.
+이를 통해 운영자는 시스템 성능을 신속하게 검증할 수 있습니다.
+% For example, when a "rear" mounted gauge was detected, the system log noted: \texttt{INFO | DepthLogic: Detected (rear) tag | Area ratio 0.45 < threshold | Successfully matched to rear-side equipment}.
+예를 들어, "후면" 장착 게이지가 탐지되었을 때 시스템 로그는 다음과 같이 기록했습니다: \texttt{INFO | DepthLogic: Detected (rear) tag | Area ratio 0.45 < threshold | Successfully matched to rear-side equipment}.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/results_sample.png}
+% \caption{Comprehensive visualization of successful diagnostic results. (a) Analog gauge reading with homography correction for perspective distortion. (b) Digital gauge OCR with skew correction and decimal point recognition. (c) Grid-based spatial sorting for dense LED indicators. (d) VLM-based semantic analysis for non-standard safety equipment.}
+\caption{성공적인 진단 결과의 종합 시각화. (a) 원근 왜곡에 대한 호모그래피 교정을 포함한 아날로그 게이지 판독. (b) 스큐 교정 및 소수점 인식을 포함한 디지털 게이지 OCR. (c) 조밀한 LED 지표를 위한 그리드 기반 공간 정렬. (d) 비표준 안전 장비를 위한 VLM 기반 의미론적 분석.}
+\label{fig:result_samples}
+\end{figure*}
+
+% \subsubsection{Case Study 5: Depth Logic for Dual-layer Equipment}
+\subsubsection{사례 연구 5: 이중 레이어 장비를 위한 깊이 로직}
+% In industrial battery rooms, equipment is often arranged in layers, where smaller components are mounted behind larger ones.
+산업용 배터리실에서 장비는 종종 레이어로 배열되어 더 작은 구성 요소가 더 큰 구성 요소 뒤에 장착됩니다.
+% As shown in Figure \ref{fig:result_samples_ext}(a), our system encountered two identical-looking monitoring units, one of which was tagged as \texttt{(rear)} in the master checklist.
+그림 \ref{fig:result_samples_ext}(a)에 표시된 바와 같이, 우리 시스템은 동일하게 보이는 두 개의 모니터링 장치를 발견했으며, 그중 하나는 마스터 체크리스트에서 \texttt{(후면)}으로 태그가 지정되어 있었습니다.
+% The "Depth Logic" module calculated the bounding box area ratio between the detected objects.
+"깊이 로직" 모듈은 탐지된 객체 사이의 경계 상자 면적 비율을 계산했습니다.
+% The system log noted: \texttt{INFO | DepthLogic: Candidate A (area: 4500) vs Candidate B (area: 1200) | Assigning Candidate B to '(rear)' task based on area ratio 0.26}.
+시스템 로그는 다음과 같이 기록했습니다: \texttt{INFO | DepthLogic: Candidate A (area: 4500) vs Candidate B (area: 1200) | Assigning Candidate B to '(rear)' task based on area ratio 0.26}.
+% This prevented a critical mismatch that would have occurred with a naive nearest-neighbor matching approach.
+이는 순진한 최근접 이웃 매칭 접근 방식에서 발생했을 심각한 미스매칭을 방지했습니다.
+
+% \subsubsection{Case Study 6: Strict Prefix Matching for Multi-state Indicators}
+\subsubsection{사례 연구 6: 다중 상태 지표를 위한 엄격한 접두사 매칭}
+% Industrial panels often use color-coded LEDs where the label depends on the state (e.g., \texttt{LED_red} for normal vs. \texttt{LED_red_on} for alarm).
+산업용 패널은 라벨이 상태에 따라 달라지는 색상 코드 LED(예: 정상의 경우 \texttt{LED_red} 대 알람의 경우 \texttt{LED_red_on})를 자주 사용합니다.
+% As illustrated in Figure \ref{fig:result_samples_ext}(b), a simple substring match would fail in these cases.
+그림 \ref{fig:result_samples_ext}(b)에 예시된 바와 같이, 이러한 경우 단순한 부분 문자열 매칭은 실패하게 됩니다.
+% Our "Strict Matching" algorithm uses a delimiter-aware prefix check.
+우리의 "엄격한 매칭" 알고리즘은 구분자 인식 접두사 검사를 사용합니다.
+% When the system detected a glowing red LED, the log recorded: \texttt{DEBUG | Matcher: 'LED_red_on' matches 'LED_red' prefix but strict check triggers state change | Result: ALARM}.
+시스템이 빛나는 빨간색 LED를 탐지했을 때 로그는 다음과 같이 기록했습니다: \texttt{DEBUG | Matcher: 'LED_red_on' matches 'LED_red' prefix but strict check triggers state change | Result: ALARM}.
+% This logic ensures that state transitions are captured accurately without confusing them with the base equipment identity.
+이 로직은 기본 장비 식별과 혼동하지 않고 상태 전이가 정확하게 캡처되도록 보장합니다.
+
+% \subsubsection{Case Study 7: Robustness to Low-Light in ESS Containers}
+\subsubsection{사례 연구 7: ESS 컨테이너의 저조도에 대한 강건성}
+% Energy Storage Systems (ESS) are often housed in dark containers with minimal lighting.
+에너지 저장 시스템(ESS)은 종종 최소한의 조명만 있는 어두운 컨테이너에 보관됩니다.
+% Figure \ref{fig:result_samples_ext}(c) shows an inspection point where the raw image was severely underexposed.
+그림 \ref{fig:result_samples_ext}(c)는 원시 이미지가 심하게 노출 부족인 점검 지점을 보여줍니다.
+% Our pre-processing pipeline applied an adaptive CLAHE (Contrast Limited Adaptive Histogram Equalization) before passing the crop to the inspectors.
+우리의 전처리 파이프라인은 잘린 이미지를 점검기에 전달하기 전에 적응형 CLAHE(Contrast Limited Adaptive Histogram Equalization)를 적용했습니다.
+% The system successfully identified the "Switch_OFF" state, which was nearly invisible in the original frame.
+시스템은 원래 프레임에서는 거의 보이지 않았던 "Switch_OFF" 상태를 성공적으로 식별했습니다.
+% The log entry \texttt{INFO | PreProcess: Adaptive enhancement applied | Contrast gain: 2.4x | Object 'SW_01' detected with 0.91 confidence} highlights the robustness of the system to environmental lighting variations.
+로그 항목 \texttt{INFO | PreProcess: Adaptive enhancement applied | Contrast gain: 2.4x | Object 'SW_01' detected with 0.91 confidence}는 환경 조명 변화에 대한 시스템의 강건성을 강조합니다.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/results_sample_extended.png}
+% \caption{Extended qualitative results highlighting specialized diagnostic logic. (a) Depth logic distinguishing front and rear equipment based on area ratios. (b) Strict prefix matching for accurate state classification of multi-state LEDs. (c) Adaptive enhancement for low-light inspection in ESS containers.}
+\caption{특화된 진단 로직을 강조하는 확장된 정성적 결과. (a) 면적 비율에 따라 전면 및 후면 장비를 구분하는 깊이 로직. (b) 다중 상태 LED의 정확한 상태 분류를 위한 엄격한 접두사 매칭. (c) ESS 컨테이너의 저조도 점검을 위한 적응형 향상.}
+\label{fig:result_samples_ext}
+\end{figure*}
+
+% \subsubsection{Case Study 8: Handling Partial Occlusion via Geometric Inference}
+\subsubsection{사례 연구 8: 기하학적 추론을 통한 부분 폐색 처리}
+% Industrial environments are often cluttered with pipes and structural supports that can partially obscure inspection targets.
+산업 환경은 종종 파이프와 구조적 지지대로 가득 차 있어 점검 대상을 부분적으로 가릴 수 있습니다.
+% Figure \ref{fig:result_samples_final}(a) demonstrates a case where a pressure gauge was partially blocked by a vertical support beam, hiding 20\% of the scale.
+그림 \ref{fig:result_samples_final}(a)는 압력 게이지가 수직 지지대에 의해 부분적으로 차단되어 눈금의 20\%가 가려진 사례를 보여줍니다.
+% Despite the occlusion, our AG inspector utilized the visible scale markers and the detected needle vector to reconstruct the full circular geometry.
+폐색에도 불구하고 우리의 AG 점검기는 가시적인 눈금 표시와 탐지된 바늘 벡터를 활용하여 전체 원형 기하학을 재구성했습니다.
+% The system log reported: \texttt{DEBUG | GeometryEngine: Partial occlusion detected | Scale reconstruction active | Estimated reading: 1.45 bar (confidence: 0.88)}.
+시스템 로그는 다음과 같이 보고했습니다: \texttt{DEBUG | GeometryEngine: Partial occlusion detected | Scale reconstruction active | Estimated reading: 1.45 bar (confidence: 0.88)}.
+% This geometric inference capability allows for reliable data collection even in suboptimal camera placements.
+이러한 기하학적 추론 능력은 최적이 아닌 카메라 배치에서도 신뢰할 수 있는 데이터 수집을 가능하게 합니다.
+
+% \subsubsection{Case Study 9: Multi-frame Consistency for Dynamic Environments}
+\subsubsection{사례 연구 9: 동적 환경을 위한 다중 프레임 일관성}
+% To mitigate transient errors such as flickering LEDs or passing personnel, the system incorporates a temporal consistency check over three consecutive frames.
+깜빡이는 LED나 지나가는 인원과 같은 일시적인 오류를 완화하기 위해 시스템은 세 개의 연속 프레임에 걸쳐 시간적 일관성 검사를 통합합니다.
+% As shown in Figure \ref{fig:result_samples_final}(b), an LED indicator appeared to be "ON" in a single frame due to a sensor glitch but was corrected to "OFF" based on the majority vote from the temporal window.
+그림 \ref{fig:result_samples_final}(b)에 표시된 바와 같이, LED 지표가 센서 결함으로 인해 단일 프레임에서 "ON"으로 나타났으나 시간 윈도우의 다수결에 따라 "OFF"로 수정되었습니다.
+% The log entry \texttt{INFO | TemporalFilter: State conflict detected in Frame 2 | Applying majority vote | Consensus state: OFF} underscores the system's focus on high-fidelity reporting for mission-critical operations.
+로그 항목 \texttt{INFO | TemporalFilter: State conflict detected in Frame 2 | Applying majority vote | Consensus state: OFF}는 미션 크리티컬한 운영을 위한 고충실도 보고에 대한 시스템의 집중을 강조합니다.
+
+% \subsubsection{Case Study 10: VLM for Complex Textual Information and Nameplates}
+\subsubsection{사례 연구 10: 복잡한 텍스트 정보 및 명판을 위한 VLM}
+% Beyond simple gauges and LEDs, industrial maintenance often requires reading complex nameplates that contain multiple lines of technical specifications.
+단순한 게이지와 LED를 넘어 산업 유지보수에서는 종종 여러 줄의 기술 사양을 포함하는 복잡한 명판을 읽어야 합니다.
+% Figure \ref{fig:result_samples_final}(c) shows a motor nameplate with a dense arrangement of text.
+그림 \ref{fig:result_samples_final}(c)는 텍스트가 조밀하게 배치된 모터 명판을 보여줍니다.
+% While standard OCR struggled with the hierarchy of the information, the VLM inspector was able to extract the specific "Serial Number" and "Voltage" values by understanding the semantic labels on the plate.
+표준 OCR은 정보의 계층 구조로 인해 어려움을 겪었지만, VLM 점검기는 플레이트의 의미론적 라벨을 이해하여 특정 "일련번호" 및 "전압" 값을 추출할 수 있었습니다.
+% The system log confirmed: \texttt{INFO | VLM_Inspector: Extracted SN: 'AZ-9923' | Voltage: '440V' | Accuracy verified against asset database}.
+시스템 로그는 다음과 같이 확인했습니다: \texttt{INFO | VLM_Inspector: Extracted SN: 'AZ-9923' | Voltage: '440V' | Accuracy verified against asset database}.
+
+% \subsubsection{Case Study 11: Resolving Color Ambiguity via VLM Reasoning}
+\subsubsection{사례 연구 11: VLM 추론을 통한 색상 모호성 해결}
+% Distinguishing between similar colors, such as amber and yellow or different shades of blue, can be challenging for standard color-space thresholding under varying color temperatures of light.
+조명의 색온도 변화에 따라 황색과 노란색, 또는 파란색의 서로 다른 색조와 같이 유사한 색상을 구별하는 것은 표준 색 공간 임계값 처리에 어려울 수 있습니다.
+% Figure \ref{fig:result_samples_final}(d) shows a status indicator where the LED color was ambiguous.
+그림 \ref{fig:result_samples_final}(d)는 LED 색상이 모호한 상태 지표를 보여줍니다.
+% While the basic detector flagged it as "Yellow," the VLM inspector utilized the surrounding context and equipment labels to correctly identify it as an "Amber" warning light.
+기본 탐지기는 이를 "노란색"으로 표시했지만, VLM 점검기는 주변 맥락과 장비 라벨을 활용하여 이를 "황색" 경고등으로 올바르게 식별했습니다.
+% The log recorded: \texttt{INFO | VLM_Inspector: Color ambiguity detected | Contextual check: 'Warning' label present | Final state: AMBER}.
+로그는 다음과 같이 기록했습니다: \texttt{INFO | VLM_Inspector: Color ambiguity detected | Contextual check: 'Warning' label present | Final state: AMBER}.
+
+% \subsubsection{Case Study 12: Robustness to Reflective Gauge Surfaces}
+\subsubsection{사례 연구 12: 반사되는 게이지 표면에 대한 강건성}
+% Specular reflections on the glass covers of analog gauges often create "phantom needles" or obscure scale marks.
+아날로그 게이지의 유리 덮개에 생기는 정반사는 종종 "유령 바늘"을 만들거나 눈금 표시를 가립니다.
+% As depicted in Figure \ref{fig:result_samples_final}(e), our pre-processing module identified high-intensity glare regions and applied a specialized masking and inpainting technique before the geometric analysis.
+그림 \ref{fig:result_samples_final}(e)에 묘사된 바와 같이, 우리의 전처리 모듈은 고강도 눈부심 영역을 식별하고 기하학적 분석 전에 특화된 마스킹 및 인페인팅 기법을 적용했습니다.
+% The AG inspector then correctly identified the actual needle by its physical connection to the center pivot, ignoring the reflection.
+그런 다음 AG 점검기는 반사를 무시하고 중심 피벗과의 물리적 연결을 통해 실제 바늘을 올바르게 식별했습니다.
+% The log noted: \texttt{DEBUG | AG_Inspector: Specular reflection masked | Needle connectivity verified | Reading stabilized at 2.2 bar}.
+로그는 다음과 같이 기록했습니다: \texttt{DEBUG | AG_Inspector: Specular reflection masked | Needle connectivity verified | Reading stabilized at 2.2 bar}.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.95\textwidth]{figures/results_sample_final.png}
+% \caption{Final set of qualitative results showcasing advanced system features. (a) Geometric reconstruction for partially occluded analog gauges. (b) Temporal consistency check to eliminate transient diagnostic errors. (c) VLM-driven extraction of complex textual information from industrial nameplates. (d) Color ambiguity resolution using contextual VLM reasoning. (e) Reflection masking for reliable gauge reading on glass surfaces.}
+\caption{고급 시스템 기능을 보여주는 마지막 정성적 결과 세트. (a) 부분적으로 폐색된 아날로그 게이지를 위한 기하학적 재구성. (b) 일시적인 진단 오류를 제거하기 위한 시간적 일관성 검사. (c) 산업용 명판에서 복잡한 텍스트 정보의 VLM 주도 추출. (d) 맥락적 VLM 추론을 사용한 색상 모호성 해결. (e) 유리 표면의 신뢰할 수 있는 게이지 판독을 위한 반사 마스킹.}
+\label{fig:result_samples_final}
+\end{figure*}
+
+\begin{figure}[t]
+\centering
+\fbox{\rule{0pt}{2in} \rule{0.9\linewidth}{0pt}} % Placeholder for failure image
+% \caption{Examples of diagnostic failures. (a) OCR failure due to specular reflection. (b) VLM reasoning error on low-resolution distant objects.}
+\caption{진단 실패 사례. (a) 정반사로 인한 OCR 실패. (b) 저해상도 원거리 물체에 대한 VLM 추론 오류.}
+\label{fig:failure_samples}
+\end{figure}

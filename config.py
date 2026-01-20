@@ -2,9 +2,12 @@
 import os
 
 # [Path Settings]
-BASE_DIR = "/home/kiie/synology/Projects/R25IA04/Inspection_and_Diagnosis/Inspection_Raw_DATA_Dockerd/robot-control-system_inspection_data(docker X)"
+# BASE_DIR = "/home/kiie/synology/Projects/R25IA04/Inspection_and_Diagnosis/Inspection_Raw_DATA_Dockerd/robot-control-system_inspection_data(docker X)"
+BASE_DIR = "/home/kiie/synology/Projects/R25IA04/Inspection_and_Diagnosis/"
 EXCEL_FILE = "/home/kiie/synology/Projects/R25IA04/Inspection_point_Labeling.xlsx"
 RESULT_BASE_DIR = "/home/kiie/projects/python/inspection/results"
+# [Path Parser Settings]
+IMAGE_PATH_PREFIX = "inspection_data"
 
 # [Model Settings]
 MODEL_CONFIG = {
@@ -146,9 +149,10 @@ LABEL_MAP = {
     "Class_W-Drains_Clean_ok":["Class_W-Drains_Clean_ok"],
     "Class_W-Tank_Gauge_ok":["Class_W-Tank_Gauge_ok"],
     "DG_Air-Conditioner":["DG_Temp_Air-Conditioner_NA"],
+    "DG_GIMAC-DC":["DG_ACV-DCV-OCA_V-V-A_NA"],
     "DG_BMS":[""],
     "DG_Boost-pump":["DG_Boost-pump_bar_NA"],
-    "DG_Digital_Integrated_Meter":["DG_Va-Ia-P-UH_V-A-P-Mwh_NA"],
+    "DG_Digital-Integrated-Meter":["DG_Va-Ia-P-UH_V-A-P-Mwh_NA"],
     "DG_Digital-Meter":["DG_VAP_Meter_NA"],
     "DG_UPS-600KVA":["DG_VA_NA_NA"],
     "DG_Electric-Water-Heater":["DG_Heater_Temp_NA"],

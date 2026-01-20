@@ -159,7 +159,7 @@ def push_row_to_db(row, col_mapping):
             mission_name=mission,
             inspection_time=datetime.now(), 
             data_raw_dir=abs_path,
-            data_result_dir=insp_name, 
+            data_result_dir="", 
             state=DiagnosisState.QUEUED
         )
         
@@ -338,10 +338,182 @@ def push_task_from_excel(keyword=None):
     except Exception as e:
         print(f"❌ Error: {e}")
 
+
+def push_tasks_from_folder():
+    """
+    config.BASE_DIR 하위의 폴더들을 스캔하여 인터랙티브하게 태스크를 생성합니다.
+    폴더 구조: BASE_DIR / [PREFIX] / {site} / {mission} / {file_name}
+    
+    키 조작:
+    - 'd': 현재 파일 Push 후 다음으로 이동
+    - 's': 현재 파일 Skip 후 다음으로 이동
+    - 'a': 이전 파일로 이동
+    - 'q': 종료
+    """
+    import os
+    from datetime import datetime
+    
+    base_dir = config.BASE_DIR
+    prefix = getattr(config, 'IMAGE_PATH_PREFIX', "")
+    
+    if not os.path.exists(base_dir):
+        print(f"❌ BASE_DIR not found: {base_dir}")
+        return
+
+    print(f"📂 Scanning BASE_DIR: {base_dir}")
+    if prefix:
+        print(f"   Prefix Filter: {prefix}")
+    print("   Collecting files...")
+    
+    # Prefix가 있으면 해당 하위부터 스캔 시작
+    scan_start_dir = os.path.join(base_dir, prefix) if prefix else base_dir
+    
+    if not os.path.exists(scan_start_dir):
+        print(f"❌ Scan directory not found: {scan_start_dir}")
+        return
+
+    # Collect all valid files first
+    file_list = []
+    for root, dirs, files in os.walk(scan_start_dir):
+        for file in files:
+            if not file.lower().endswith((".jpg", ".jpeg")):
+                continue
+                
+            full_path = os.path.join(root, file)
+            # rel_path는 여전히 BASE_DIR 기준 (사용자 요청: BASE_DIR 제외한 나머지)
+            rel_path = os.path.relpath(full_path, base_dir)
+            
+            # Path 파싱을 위해 Prefix 제외한 부분 추출
+            if prefix:
+                # rel_path_no_prefix = rel_path - prefix
+                rel_path_no_prefix = os.path.relpath(full_path, scan_start_dir)
+                parts = rel_path_no_prefix.split(os.sep)
+            else:
+                parts = rel_path.split(os.sep)
+            
+            # Check minimum depth (Site / Mission / insp_name / File)
+            if len(parts) < 4:
+                continue
+            
+            site = parts[0]
+            mission = parts[1]
+            insp_name = parts[2]
+            file_name = parts[3]
+
+            # [Smart Folder & Master Sync]
+            # rel_folder_path is the key main.py uses to find images: BASE_DIR + insp_name
+            rel_folder_path = os.path.relpath(root, base_dir)
+            folder_name = os.path.basename(root)
+            
+            file_list.append({
+                'rel_path': rel_path,
+                'rel_folder_path': rel_folder_path,
+                'site': site,
+                'mission': mission,
+                'insp_name': insp_name,
+                'file_name': file_name,
+            })
+    
+    total = len(file_list)
+    print(f"✅ Found {total} valid files.")
+    
+    if total == 0:
+        print("⚠️ No files to process.")
+        return
+    
+    print("⌨️  Interactive Mode: [d]=Push & Next, [s]=Same, [a]=Prev, [q]=Quit")
+    
+    db = SessionLocal()
+    current_idx = 0
+    pushed_count = 0
+    
+    try:
+        while 0 <= current_idx < total:
+            item = file_list[current_idx]
+            print(f"\n[{current_idx + 1}/{total}] Site={item['site']}, Mission={item['mission']}, Inspect={item['insp_name']}")
+            print(f"   Path: {item['rel_path']}")
+            
+            # [Match Master Info]
+            # DB의 InspectionPoint를 조회하여 일치하는 키를 찾습니다.
+            folder_name = item['insp_name']
+            
+            # 1. 일치하는 마스터 정보 탐색
+            point = db.query(InspectionPoint).filter(
+                InspectionPoint.site == item['site'],
+                InspectionPoint.mission_name == item['mission'],
+                InspectionPoint.inspection_name == item['insp_name']
+            ).first()
+            
+            if point:
+                master_key = point.inspection_name
+                print(f"   🎯 Matched Master: {master_key}")
+            else:
+                print(f"   ⚠️ Warning: No Master Info found for '{item['insp_name']}' in mission '{item['mission']}'")
+                master_key = item['insp_name']
+
+
+
+            print("   [d]=Push&Next, [n]=Skip&Next, [a]=Prev, [s]=Same, [q]=Quit: ", end="", flush=True)
+            
+            char_raw = getch()
+            char = char_raw.lower()
+            print(char_raw) # Echo the key
+            
+            if char == 'q':
+                print("👋 Quit.")
+                break
+            elif char == 'd' or char == 's':
+                # Push current
+                new_task = InspectionData(
+                    site=item['site'],
+                    mission_name=item['mission'],
+                    inspection_name=item['insp_name'],
+                    inspection_time=datetime.now(),
+                    data_raw_dir=item['rel_path'],
+                    data_result_dir="",
+                    state=DiagnosisState.QUEUED
+                )
+                db.add(new_task)
+                db.commit()
+                db.refresh(new_task)
+                pushed_count += 1
+                
+                status_icon = "✅" if char == 'd' else "🔄"
+                print(f"   {status_icon} Pushed (ID: {new_task.id})")
+                
+                if char == 'd':
+                    current_idx += 1
+                # if 's', current_idx stays same
+            elif char == 'n':
+                # Skip & Next
+                print("   ⏭️ Skipped.")
+                current_idx += 1
+            elif char == 'a':
+                # Go back
+                if current_idx > 0:
+                    current_idx -= 1
+                    print(f"   ◀️  Moved back to {current_idx + 1}")
+                else:
+                    print("   ⚠️ Already at the beginning.")
+            else:
+                print(f"   💡 Unknown key: {repr(char_raw)}. Use [d, n, a, s, q]")
+
+        
+        print(f"\n✅ Done. Total Pushed: {pushed_count}")
+        
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Error: {e}")
+    finally:
+        db.close()
+
 if __name__ == "__main__":
     if len(sys.argv) > 1:
-        keyword = sys.argv[1]
-        push_task_from_excel(keyword)
+        if sys.argv[1] == "--scan":
+            push_tasks_from_folder()
+        else:
+            keyword = sys.argv[1]
+            push_task_from_excel(keyword)
     else:
         # Default to interactive mode if no arguments
         interactive_mode()

@@ -1,0 +1,90 @@
+\section{Proposed Methodology}
+\label{sec:methodology}
+
+% \subsection{Design Motivation: Addressing Industrial Challenges}
+\subsection{설계 동기: 산업적 과제 해결}
+% The design of our system is motivated by three critical challenges observed in industrial inspection.
+우리 시스템의 설계는 산업 점검에서 관찰된 세 가지 중요한 과제에 의해 동기 부여되었습니다.
+% First, the \textbf{Geometric Distortion Challenge} arises from the fact that inspection robots cannot always align themselves perfectly with target equipment, necessitating robust rectification modules.
+첫째, \textbf{기하학적 왜곡 과제}는 점검 로봇이 대상 장비와 항상 완벽하게 정렬될 수 없다는 사실에서 발생하며, 이에 따라 강건한 보정 모듈이 필요합니다.
+% Second, the \textbf{Semantic Diversity Challenge} refers to the wide variety of inspection points; while gauges can be modeled geometrically, items like safety signs require high-level reasoning.
+둘째, \textbf{의미론적 다양성 과제}는 점검 지점의 광범위한 다양성을 의미합니다. 게이지는 기하학적으로 모델링될 수 있지만, 안전 표지판과 같은 항목은 고수준의 추론이 필요합니다.
+% Third, the \textbf{Efficiency-Accuracy Trade-off} requires a system that provides deep analysis without stalling the robot's movement.
+셋째, \textbf{효율성-정확도 트레이드오프}는 로봇의 움직임을 멈추지 않으면서도 심층적인 분석을 제공하는 시스템을 요구합니다.
+% Our modular methodology is specifically tailored to address these needs through a layered approach.
+우리의 모듈형 방법론은 계층적 접근 방식을 통해 이러한 요구 사항을 해결하도록 특별히 설계되었습니다.
+
+% The proposed industrial inspection system is designed as a multi-layered modular framework that bridges the gap between raw visual data and structured diagnostic reporting.
+제안된 산업 점검 시스템은 원시 시각 데이터와 구조화된 진단 보고 사이의 간극을 메우는 다계층 모듈형 프레임워크로 설계되었습니다.
+% The methodology is divided into four functional layers: the Orchestration Layer, the Perception and Pre-processing Layer, the Specialized Diagnostics Layer, and the Resource Management Layer.
+이 방법론은 오케스트레이션 계층, 인지 및 전처리 계층, 특화 진단 계층, 그리고 자원 관리 계층의 네 가지 기능 계층으로 나뉩니다.
+% The entire system flow is illustrated in Figure \ref{fig:architecture}.
+전체 시스템 흐름은 그림 \ref{fig:architecture}에 예시되어 있습니다.
+
+\begin{figure*}[t]
+\centering
+\fbox{\rule{0pt}{3in} \rule{0.95\linewidth}{0pt}} % Placeholder for detailed high-level architecture
+% \caption{The high-level architecture of the integrated industrial inspection system. The system is divided into four main layers: (1) Orchestration Layer for task management, (2) Perception and Pre-processing Layer for object detection and geometric refinement, (3) Specialized Diagnostics Layer for domain-specific interpretation (AG, DG, LED, VLM), and (4) Resource Management Layer for performance optimization.}
+\caption{통합 산업 점검 시스템의 고수준 아키텍처. 시스템은 네 개의 주요 계층으로 나뉩니다: (1) 작업 관리를 위한 오케스트레이션 계층, (2) 객체 탐지 및 기하학적 정제를 위한 인지 및 전처리 계층, (3) 도메인 특화 해석을 위한 특화 진단 계층 (AG, DG, LED, VLM), (4) 성능 최적화를 위한 자원 관리 계층.}
+\label{fig:architecture}
+\end{figure*}
+
+% \subsection{Orchestration Layer: Task Lifecycle Management}
+\subsection{오케스트레이션 계층: 작업 생명주기 관리}
+% At the highest level, the system is governed by a central orchestration engine (\texttt{main.py} and the \texttt{DiagnosisSystem} class).
+최상위 수준에서 시스템은 중앙 오케스트레이션 엔진(\texttt{main.py} 및 \texttt{DiagnosisSystem} 클래스)에 의해 제어됩니다.
+% This layer is responsible for the end-to-end lifecycle of an inspection mission.
+이 계층은 점검 미션의 엔드 투 엔드 생명주기를 책임집니다.
+% It performs the following functions:
+이 계층은 다음과 같은 기능을 수행합니다:
+\begin{itemize}
+% \item \textbf{Checklist Integration}: It ingests a master inspection checklist (Excel format) that defines the targets, expected states, and spatial metadata (e.g., \texttt{rear} tags, grid positions).
+    \item \textbf{체크리스트 통합}: 대상, 예상 상태 및 공간 메타데이터(예: \texttt{rear} 태그, 그리드 위치)를 정의하는 마스터 점검 체크리스트(Excel 형식)를 수집합니다.
+% \item \textbf{Task Dispatching}: Based on the equipment type defined in the checklist, it dispatches cropped image regions to the appropriate specialized inspector.
+    \item \textbf{작업 디스패칭}: 체크리스트에 정의된 장비 유형에 따라 잘린 이미지 영역을 적절한 특화 점검기에 배정합니다.
+% \item \textbf{Result Aggregation}: It collects diagnostic outputs from all modules, performs cross-validation (e.g., temporal consistency), and generates the final structured report.
+    \item \textbf{결과 집계}: 모든 모듈에서 진단 출력을 수집하고, 교차 검증(예: 시간적 일관성)을 수행하며, 최종 구조화된 보고서를 생성합니다.
+\end{itemize}
+
+% \subsection{Perception and Pre-processing Layer: Bridging Real-world Noise}
+\subsection{인지 및 전처리 계층: 실제 환경의 노이즈 극복}
+% This layer transforms raw sensor data into refined inputs for diagnosis.
+이 계층은 원시 센서 데이터를 진단을 위한 정제된 입력으로 변환합니다.
+% It addresses the inherent noise and geometric distortions of industrial environments:
+산업 환경 고유의 노이즈와 기하학적 왜곡을 처리합니다:
+\begin{itemize}
+% \item \textbf{Detection and Localization}: Employs an Ultralytics YOLOv11 model to detect primary equipment (gauges, switches) and secondary features (needles, scale marks).
+    \item \textbf{탐지 및 지역화}: Ultralytics YOLOv11 모델을 사용하여 주요 장비(게이지, 스위치) 및 보조 특징(바늘, 눈금 표시)을 탐지합니다.
+% \item \textbf{Geometric Refinement}: A crucial step where Homography-based projection is used to rectify perspective distortions, and Hough transform-based skew correction is applied to display screens.
+    \item \textbf{기하학적 정제}: 호모그래피 기반 투영을 사용하여 원근 왜곡을 교정하고, 디스플레이 화면에 허프 변환 기반 스큐 교정을 적용하는 중요한 단계입니다.
+% \item \textbf{Environmental Adaptation}: Includes adaptive CLAHE for low-light enhancement and specular reflection masking to stabilize visual features.
+    \item \textbf{환경 적응}: 저조도 개선을 위한 적응형 CLAHE와 시각적 특징을 안정화하기 위한 정반사 마스킹을 포함합니다.
+\end{itemize}
+
+% \subsection{Specialized Diagnostics Layer: Domain-specific Interpreters}
+\subsection{특화 진단 계층: 도메인 특화 해석기}
+% Once the image regions are localized and rectified, they are processed by specialized engines:
+이미지 영역이 지역화되고 교정되면 특화된 엔진에 의해 처리됩니다:
+\begin{itemize}
+% \item \textbf{Analog Gauge (AG) Inspector}: Uses pose estimation to identify the center point, scale bounds, and needle vector. The reading is calculated via geometric angle interpolation.
+    \item \textbf{아날로그 게이지(AG) 점검기}: 포즈 추정을 사용하여 중심점, 눈금 범위 및 바늘 벡터를 식별합니다. 판독값은 기하학적 각도 보간을 통해 계산됩니다.
+% \item \textbf{Digital Gauge (DG) Inspector}: Utilizes PaddleOCR to extract textual data, with post-processing logic to handle decimal points and multi-segment artifacts.
+    \item \textbf{디지털 게이지(DG) 점검기}: PaddleOCR을 사용하여 텍스트 데이터를 추출하며, 소수점 및 멀티 세그먼트 아티팩트를 처리하기 위한 후처리 로직을 포함합니다.
+% \item \textbf{Switch/LED Inspector}: Performs state classification (ON/OFF/COLOR) using a combination of color-space thresholding and delimiter-aware prefix matching against the checklist.
+    \item \textbf{스위치/LED 점검기}: 색 공간 임계값 처리와 체크리스트에 대한 구분자 인식 접두사 매칭의 조합을 사용하여 상태 분류(ON/OFF/COLOR)를 수행합니다.
+% \item \textbf{VLM Reasoning Engine}: Triggered for "ETC" items, this module utilizes a local Qwen2-VL model to perform semantic reasoning on non-standard safety equipment and complex nameplates.
+    \item \textbf{VLM 추론 엔진}: "ETC" 항목에 대해 트리거되는 이 모듈은 로컬 Qwen2-VL 모델을 활용하여 비표준 안전 장비 및 복잡한 명판에 대한 의미론적 추론을 수행합니다.
+\end{itemize}
+
+% \subsection{Resource Management Layer: Performance and Scaling}
+\subsection{자원 관리 계층: 성능 및 확장성}
+% To ensure the system remains viable for real-time robotic operations, we implement several optimization strategies:
+로봇의 실시간 운영이 가능하도록 시스템을 유지하기 위해 몇 가지 최적화 전략을 구현합니다:
+\begin{itemize}
+% \item \textbf{Model Management}: The \texttt{ModelManager} implements a singleton-pattern cache to prevent redundant model loading and manage VRAM allocation effectively.
+    \item \textbf{모델 관리}: \texttt{ModelManager}는 중복 모델 로딩을 방지하고 VRAM 할당을 효과적으로 관리하기 위해 싱글톤 패턴 캐시를 구현합니다.
+% \item \textbf{Parallel Execution}: A \texttt{ThreadPoolExecutor} is utilized to handle computationally intensive VLM requests in parallel, significantly reducing the bottleneck of semantic reasoning.
+    \item \textbf{병렬 실행}: \texttt{ThreadPoolExecutor}를 활용하여 계산 집약적인 VLM 요청을 병렬로 처리함으로써 의미론적 추론의 병목 현상을 크게 줄입니다.
+% \item \textbf{Temporal Consistency}: To eliminate transient errors, a voting mechanism operates across a sliding temporal window of three frames.
+    \item \textbf{시간적 일관성}: 일시적인 오류를 제거하기 위해 3개 프레임의 슬라이딩 시간 윈도우에 걸쳐 투표 메커니즘이 작동합니다.
+\end{itemize}

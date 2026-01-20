@@ -66,13 +66,13 @@ class DiagnosisSystem:
             task = db.query(InspectionData).filter(InspectionData.id == task_id).first()
             if not task: return
 
-            insp_name = task.data_result_dir
+            insp_name = task.inspection_name
             mission_name = task.mission_name
-
             task.state = DiagnosisState.RUNNING
             db.commit()
 
             points = db.query(InspectionPoint).filter(
+                InspectionPoint.site == task.site,
                 InspectionPoint.mission_name == mission_name,
                 InspectionPoint.inspection_name == insp_name
             ).all()
@@ -88,7 +88,8 @@ class DiagnosisSystem:
             logger.info(f"📋 Plan: Need to check {len(points)} points -> {types_summary}")
 
             # 2. 이미지 로드
-            img_path = self.get_latest_image(self.base_path, mission_name, insp_name)
+            img_path = os.path.join(self.base_path, task.data_raw_dir)
+
             if not img_path:
                 self._save_error_result(db, task, "Image Missing")
                 return
@@ -505,7 +506,7 @@ class DiagnosisSystem:
     @staticmethod
     def get_latest_image(base_dir, mission, insp_name):
         import glob
-        path = os.path.join(base_dir, f"{mission}.walk", f"{mission}.walk_{insp_name}")
+        path = os.path.join(base_dir, insp_name)
         files = glob.glob(os.path.join(path, "*.[jJ][pP][gG]"))
         return max(files, key=os.path.getmtime) if files else None
 

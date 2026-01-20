@@ -253,6 +253,7 @@ class InspectionData(Base):
     id = Column(Integer, primary_key=True)
     site = Column(String, nullable=False)
     mission_name = Column(String, nullable=False)
+    inspection_name = Column(String, nullable=True) # Added
     inspection_time = Column(DateTime, default=datetime.utcnow)
     data_raw_dir = Column(String, nullable=False)
     data_result_dir = Column(String, nullable=False)

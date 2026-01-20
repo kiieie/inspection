@@ -1,0 +1,49 @@
+\section{Proposed Methodology}
+\label{sec:methodology}
+
+\subsection{Design Motivation: Addressing Industrial Challenges}
+The design of our system is motivated by three critical challenges observed in industrial inspection. First, the \textbf{Geometric Distortion Challenge} arises from the fact that inspection robots cannot always align themselves perfectly with target equipment, necessitating robust rectification modules. Second, the \textbf{Semantic Diversity Challenge} refers to the wide variety of inspection points; while gauges can be modeled geometrically, items like safety signs require high-level reasoning. Third, the \textbf{Efficiency-Accuracy Trade-off} requires a system that provides deep analysis without stalling the robot's movement. Our modular methodology is specifically tailored to address these needs through a layered approach.
+
+The proposed industrial inspection system is designed as a multi-layered modular framework that bridges the gap between raw visual data and structured diagnostic reporting.
+ The methodology is divided into four functional layers: the Orchestration Layer, the Perception and Pre-processing Layer, the Specialized Diagnostics Layer, and the Resource Management Layer. The entire system flow is illustrated in Figure \ref{fig:architecture}.
+
+\begin{figure*}[t]
+\centering
+\fbox{\rule{0pt}{3in} \rule{0.95\linewidth}{0pt}} % Placeholder for detailed high-level architecture
+\caption{The high-level architecture of the integrated industrial inspection system. The system is divided into four main layers: (1) Orchestration Layer for task management, (2) Perception and Pre-processing Layer for object detection and geometric refinement, (3) Specialized Diagnostics Layer for domain-specific interpretation (AG, DG, LED, VLM), and (4) Resource Management Layer for performance optimization.}
+\label{fig:architecture}
+\end{figure*}
+
+\subsection{Orchestration Layer: Task Lifecycle Management}
+At the highest level, the system is governed by a central orchestration engine (\texttt{main.py} and the \texttt{DiagnosisSystem} class). This layer is responsible for the end-to-end lifecycle of an inspection mission. It performs the following functions:
+\begin{itemize}
+    \item \textbf{Checklist Integration}: It ingests a master inspection checklist (Excel format) that defines the targets, expected states, and spatial metadata (e.g., \texttt{rear} tags, grid positions).
+    \item \textbf{Task Dispatching}: Based on the equipment type defined in the checklist, it dispatches cropped image regions to the appropriate specialized inspector.
+    \item \textbf{Result Aggregation}: It collects diagnostic outputs from all modules, performs cross-validation (e.g., temporal consistency), and generates the final structured report.
+\end{itemize}
+
+\subsection{Perception and Pre-processing Layer: Bridging Real-world Noise}
+This layer transforms raw sensor data into refined inputs for diagnosis. It addresses the inherent noise and geometric distortions of industrial environments:
+\begin{itemize}
+    \item \textbf{Detection and Localization}: Employs an Ultralytics YOLOv11 model to detect primary equipment (gauges, switches) and secondary features (needles, scale marks).
+    \item \textbf{Geometric Refinement}: A crucial step where Homography-based projection is used to rectify perspective distortions, and Hough transform-based skew correction is applied to display screens.
+    \item \textbf{Environmental Adaptation}: Includes adaptive CLAHE for low-light enhancement and specular reflection masking to stabilize visual features.
+\end{itemize}
+
+\subsection{Specialized Diagnostics Layer: Domain-specific Interpreters}
+Once the image regions are localized and rectified, they are processed by specialized engines:
+\begin{itemize}
+    \item \textbf{Analog Gauge (AG) Inspector}: Uses pose estimation to identify the center point, scale bounds, and needle vector. The reading is calculated via geometric angle interpolation.
+    \item \textbf{Digital Gauge (DG) Inspector}: Utilizes PaddleOCR to extract textual data, with post-processing logic to handle decimal points and multi-segment artifacts.
+    \item \textbf{Switch/LED Inspector}: Performs state classification (ON/OFF/COLOR) using a combination of color-space thresholding and delimiter-aware prefix matching against the checklist.
+    \item \textbf{VLM Reasoning Engine}: Triggered for "ETC" items, this module utilizes a local Qwen2-VL model to perform semantic reasoning on non-standard safety equipment and complex nameplates.
+\end{itemize}
+
+\subsection{Resource Management Layer: Performance and Scaling}
+To ensure the system remains viable for real-time robotic operations, we implement several optimization strategies:
+\begin{itemize}
+    \item \textbf{Model Management}: The \texttt{ModelManager} implements a singleton-pattern cache to prevent redundant model loading and manage VRAM allocation effectively.
+    \item \textbf{Parallel Execution}: A \texttt{ThreadPoolExecutor} is utilized to handle computationally intensive VLM requests in parallel, significantly reducing the bottleneck of semantic reasoning.
+    \item \textbf{Temporal Consistency}: To eliminate transient errors, a voting mechanism operates across a sliding temporal window of three frames.
+\end{itemize}
+
