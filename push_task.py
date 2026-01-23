@@ -157,7 +157,7 @@ def push_row_to_db(row, col_mapping):
         new_task = InspectionData(
             site=site,
             mission_name=mission,
-            inspection_time=datetime.now(), 
+            inspection_time=datetime.now().replace(microsecond=0), 
             data_raw_dir=abs_path,
             data_result_dir="", 
             state=DiagnosisState.QUEUED
@@ -468,7 +468,7 @@ def push_tasks_from_folder():
                     site=item['site'],
                     mission_name=item['mission'],
                     inspection_name=item['insp_name'],
-                    inspection_time=datetime.now(),
+                    inspection_time=datetime.now().replace(microsecond=0),
                     data_raw_dir=item['rel_path'],
                     data_result_dir="",
                     state=DiagnosisState.QUEUED

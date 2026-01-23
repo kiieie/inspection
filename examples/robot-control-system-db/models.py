@@ -168,7 +168,8 @@ class InspectionResult(Base):
     sort_key = Column(String, nullable=True)
     
     # [Inspection Actual Data] 진단 실측 정보
-    inspection_datetime = Column(DateTime, nullable=False, default=datetime.now)
+    inspection_datetime = Column(DateTime, nullable=False, default=lambda: datetime.now().replace(microsecond=0))
+    photo_time = Column(DateTime, nullable=True)     # 사진 촬영 시간 (파일명에서 추출)
     result_value = Column(String, nullable=True)    # 판독 수치 또는 상태 (영어 정규화)
     judgement = Column(String, nullable=True)       # PASS / FAIL
     comment_result = Column(String, nullable=True)  # 진단 시 특이사항
@@ -254,7 +255,7 @@ class InspectionData(Base):
     site = Column(String, nullable=False)
     mission_name = Column(String, nullable=False)
     inspection_name = Column(String, nullable=True) # Added
-    inspection_time = Column(DateTime, default=datetime.utcnow)
+    inspection_time = Column(DateTime, default=lambda: datetime.now().replace(microsecond=0))
     data_raw_dir = Column(String, nullable=False)
     data_result_dir = Column(String, nullable=False)
     state = Column(Enum(DiagnosisState), default=DiagnosisState.QUEUED)

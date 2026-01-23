@@ -82,6 +82,23 @@ class DiagnosisSystem:
                 task.state = DiagnosisState.FAILED
                 db.commit()
                 return
+
+            # [Extract Photo Time from Path]
+            # Format: {insp_name}_{YYYYMMDD}_{HHMMSS}.jpg
+            photo_time = None
+            try:
+                base_fname = os.path.splitext(os.path.basename(task.data_raw_dir))[0]
+                parts = base_fname.split('_')
+                if len(parts) >= 2:
+                    # Last two are usually date and time
+                    date_str = parts[-2]
+                    time_str = parts[-1]
+                    if len(date_str) == 8 and len(time_str) == 6:
+                        photo_time = datetime.strptime(f"{date_str}{time_str}", "%Y%m%d%H%M%S")
+                        logger.info(f"📸 Extracted Photo Time: {photo_time}")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to extract photo_time: {e}")
+
             
             # [Summary Log]
             types_summary = [p.inspection_point_type for p in points]
@@ -393,7 +410,7 @@ class DiagnosisSystem:
                         # Logic continues to _save_result.
                     
                     # [Fix] 결과 DB 저장 (생성해둔 절대 경로 structured_res_path 전달)
-                    self._save_result(db, task.id, point, final_val, final_status, img_path, box_info, structured_res_path)
+                    self._save_result(db, task.id, point, final_val, final_status, img_path, box_info, structured_res_path, photo_time)
                     summary_list.append({"type": target, "found": matched is not None})
 
             # [User Request] Draw Unmatched (Unused) Detections as Gray Boxes
@@ -451,7 +468,7 @@ class DiagnosisSystem:
         # 4. Save JSON
         data = {
             "task_id": task.id,
-            "date": datetime.now().isoformat(),
+            "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "site": site,
             "mission": mission,
             "inspection": insp,
@@ -475,7 +492,7 @@ class DiagnosisSystem:
         
         return res_img_path
 
-    def _save_result(self, db, data_id, point, val, status, raw_path, box, res_path_str):
+    def _save_result(self, db, data_id, point, val, status, raw_path, box, res_path_str, photo_time=None):
         """진단 결과를 InspectionResult 테이블에 기록합니다."""
         res = InspectionResult(
             site=point.site,
@@ -494,7 +511,8 @@ class DiagnosisSystem:
             data_raw_dir=raw_path,
             data_result_dir=res_path_str, # 절대 경로 저장
             spatial_info={"box": box},
-            inspection_datetime=datetime.now()
+            inspection_datetime=datetime.now().replace(microsecond=0),
+            photo_time=photo_time
         )
         db.add(res)
         db.commit()
