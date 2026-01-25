@@ -48,105 +48,123 @@ class AGInspector:
         if main_res.boxes is None or main_res.keypoints is None:
             return []
 
-        for i, box in enumerate(main_res.boxes):
+        # YOLOv8 keypoints data: [N, 5, 3] (x, y, conf)
+        kps_all = main_res.keypoints.data.cpu().numpy()
+        boxes_all = main_res.boxes.data.cpu().numpy() # [N, 6] (x1, y1, x2, y2, conf, cls)
+
+        for i in range(len(boxes_all)):
             # 1. 기본 정보 추출
-            x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
-            label_name = main_res.names[int(box.cls[0])]
-            kpts = main_res.keypoints[i].data[0].cpu().numpy() # [5, 3]
+            box = boxes_all[i]
+            x1, y1, x2, y2 = map(int, box[:4])
+            label_name = main_res.names[int(box[5])]
+            kpts = kps_all[i] # [5, 3]
 
-            if kpts.shape[0] < 5: continue
+            # 2. 키포인트 유효성 검사 (Confidence filtering)
+            # KP: Start(0), Mid(1), Center(2), End(3), Head(4)
+            def get_valid_pt(idx):
+                if kpts[idx][2] < 0.5: return None
+                return kpts[idx][:2]
 
-            p_s, p_m, p_c, p_e, p_h = kpts[0][:2], kpts[1][:2], kpts[2][:2], kpts[3][:2], kpts[4][:2]
+            p_s, p_m, p_c, p_e, p_h = get_valid_pt(0), get_valid_pt(1), get_valid_pt(2), get_valid_pt(3), get_valid_pt(4)
 
-            # 2. [검증 로직] ag_core의 기하학적 유효성 검사 반영
+            # 필수 포인트(Center, Start, End)가 없으면 불가능
+            if p_c is None or p_s is None or p_e is None:
+                final_results.append({
+                    'label': label_name, 'value_ratio': 0.0, 'status_msg': "Missing Keypoints",
+                    'is_valid': False, 'box': [x1, y1, x2, y2], 'keypoints': kpts
+                })
+                continue
+
+            # 3. 기하학적 유효성 검사 (Radius check)
             d_s = np.linalg.norm(p_s - p_c)
             d_e = np.linalg.norm(p_e - p_c)
-            d_m = np.linalg.norm(p_m - p_c)
-            avg_r = (d_s + d_e + d_m) / 3.0
-            max_r = max(d_s, d_e, d_m)
-            min_r = min(d_s, d_e, d_m)
+            d_m = np.linalg.norm(p_m - p_c) if p_m is not None else (d_s + d_e) / 2.0
+            
+            radii = [d_s, d_e, d_m]
+            avg_r = sum(radii) / 3.0
+            max_r, min_r = max(radii), min(radii)
 
+            # 너무 작거나 경계선에 걸친 경우 필터링
+            margin = 5
+            cx, cy = p_c
             is_valid = True
             status_msg = "OK"
 
-            # 너무 작거나 심하게 찌그러진 경우 필터링
-            if max_r < 15.0: 
+            if max_r < 15.0:
                 is_valid, status_msg = False, "Too Small"
-            elif max_r > 0 and (min_r / max_r) < 0.4: 
+            elif max_r > 0 and (min_r / max_r) < 0.4:
                 is_valid, status_msg = False, "Distorted"
-            
+            elif cx < margin or cx > img_w-margin or cy < margin or cy > img_h-margin:
+                is_valid, status_msg = False, "Edge"
+
             ratio = 0.0
             if is_valid:
-                # 3. [Warping 로직] 정면 보정 후 비율 계산
-                # 대칭점 계산
+                # 4. 바늘 머리 확인
+                has_head = p_h is not None and np.linalg.norm(p_h - p_c) > avg_r * 0.1
+                
+                # 5. Aspect Ratio (AR) 체크 및 Warping 결정
                 p_s_opp = 2 * p_c - p_s
                 p_e_opp = 2 * p_c - p_e
-                
-                # 종횡비(AR) 체크
                 side_1 = np.linalg.norm(p_s - p_e)
                 side_2 = np.linalg.norm(p_e - p_s_opp)
                 ar = max(side_1, side_2) / (min(side_1, side_2) + 1e-6)
 
-                # 바늘 탐지 여부 확인
-                head_len = np.linalg.norm(p_h - p_c)
-                if head_len > avg_r * 0.1:
-                    # 원본 이미지에서의 Raw Ratio (백업용)
-                    # raw_ratio = self._calculate_ratio(p_c, p_s, p_e, p_h)
+                # AR이 너무 크면(심한 측면) Warping이 역효과를 낼 수 있음 -> Raw 사용
+                skip_warp = (ar > 1.5)
 
-                    # --- Homography 변환 시작 ---
+                if has_head and not skip_warp:
+                    # --- Homography Warping ---
                     src_pts = np.float32([p_s, p_e, p_s_opp, p_e_opp])
-                    cx, cy = self.FINAL_LEN // 2, self.FINAL_LEN // 2
+                    cx_f, cy_f = self.FINAL_LEN // 2, self.FINAL_LEN // 2
                     dst_r = int(self.FINAL_LEN * 0.35)
 
                     v_s, v_e = p_s - p_c, p_e - p_c
                     cos_theta = np.dot(v_s, v_e) / (np.linalg.norm(v_s) * np.linalg.norm(v_e) + 1e-6)
                     half_span = math.acos(np.clip(cos_theta, -1.0, 1.0)) / 2.0
 
-                    # 게이지 방향 판단 (무지개 형태 여부)
-                    is_rainbow = ((p_s[1] + p_e[1]) / 2.0) < p_c[1]
-                    base_angle = -math.pi/2.0 if is_rainbow else math.pi/2.0
+                    # 방향 판단
+                    mid_y = (p_s[1] + p_e[1]) / 2.0
+                    is_rainbow = mid_y < p_c[1]
                     
-                    # 목적지 좌표 생성
-                    def get_dst_pt(rad):
-                        return (cx + dst_r * math.cos(rad), cy + dst_r * math.sin(rad))
-
+                    base_angle = -math.pi/2.0 if is_rainbow else math.pi/2.0
                     t_s_rad = base_angle - half_span if is_rainbow else base_angle + half_span
                     t_e_rad = base_angle + half_span if is_rainbow else base_angle - half_span
                     
+                    def get_dst_pt(rad):
+                        return (cx_f + dst_r * math.cos(rad), cy_f + dst_r * math.sin(rad))
+
                     dst_s = get_dst_pt(t_s_rad)
                     dst_e = get_dst_pt(t_e_rad)
-                    dst_pts = np.float32([dst_s, dst_e, (2*cx-dst_s[0], 2*cy-dst_s[1]), (2*cx-dst_e[0], 2*cy-dst_e[1])])
+                    dst_pts = np.float32([dst_s, dst_e, (2*cx_f-dst_s[0], 2*cy_f-dst_s[1]), (2*cx_f-dst_e[0], 2*cy_f-dst_e[1])])
 
                     try:
                         M_homo, _ = cv2.findHomography(src_pts, dst_pts)
-                        # 바늘 포인트 변환
                         def transform_pt(pt, m):
                             v = m @ np.array([pt[0], pt[1], 1])
                             return np.array([v[0]/v[2], v[1]/v[2]])
 
-                        t_c = transform_pt(p_c, M_homo)
-                        t_s = transform_pt(p_s, M_homo)
-                        t_e = transform_pt(p_e, M_homo)
-                        t_h = transform_pt(p_h, M_homo)
-
-                        # 보정된 이미지 기준 비율 계산
-                        ratio = self._calculate_ratio(t_c, t_s, t_e, t_h)
-                    except Exception as e:
-                        logger.error(f"Warping failed: {e}")
-                        ratio = self._calculate_ratio(p_c, p_s, p_e, p_h) # 실패 시 원본 기준 계산
+                        ratio = self._calculate_ratio(transform_pt(p_c, M_homo), 
+                                                     transform_pt(p_s, M_homo), 
+                                                     transform_pt(p_e, M_homo), 
+                                                     transform_pt(p_h, M_homo))
+                    except:
+                        ratio = self._calculate_ratio(p_c, p_s, p_e, p_h)
+                elif has_head:
+                    # Raw Ratio
+                    ratio = self._calculate_ratio(p_c, p_s, p_e, p_h)
                 else:
                     status_msg = "No Needle"
 
-            # 4. 결과 저장
+            # 6. 결과 저장
             final_results.append({
                 'label': label_name,
                 'value_ratio': ratio,
                 'status_msg': status_msg,
                 'is_valid': is_valid,
                 'box': [x1, y1, x2, y2],
-                'area': (x2 - x1) * (y2 - y1), # 면적 데이터 산출 추가
-                'center_x': (x1 + x2) / 2,
-                'center_y': (y1 + y2) / 2,
+                'area': (x2 - x1) * (y2 - y1),
+                'center_x': cx,
+                'center_y': cy,
                 'keypoints': kpts
             })
 
