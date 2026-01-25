@@ -1,6 +1,33 @@
 
 📘 산업용 설비 자동 진단 시스템 상세 설계서
-Project: Inspection & Diagnosis System Version: 1.0 (Refined Logic)
+Project: Inspection & Diagnosis System Version: 2.6.0 (Latest)
+
+## 🚀 빠른 실행 가이드 (Usage Guide)
+
+### 1. 진단 시스템 실행 (`main.py`)
+데이터베이스를 폴링하여 대기 중인(`QUEUED`) 태스크를 자동으로 분석합니다.
+
+```bash
+# 기본 실행 (시각화 창 비활성화)
+python main.py
+
+# 시각화 창(OpenCV)을 보면서 실행
+python main.py --withfig
+```
+*   **옵션:** `--withfig` 를 사용하면 분석 결과를 OpenCV 창으로 즉시 확인할 수 있습니다. 기본값은 `OFF`입니다.
+
+### 2. 자동 태스크 푸셔 실행 (`push_task.py`)
+지정된 폴더를 실시간으로 감시하여 새로운 이미지가 추가되면 자동으로 분석 태스크를 생성합니다.
+
+```bash
+# 실시간 폴더 감시 모드
+python push_task.py --scanauto
+```
+*   **동작:** `config.BASE_DIR`을 60초 주기로 스캔하여 `.jpg`, `.jpeg`, `.png` 파일을 감지합니다.
+*   **DB 연동:** 발견된 파일이 DB에 없다면 `inspection_point`(마스터)와 `inspection_data`(태스크)에 자동으로 등록합니다.
+*   **종료:** 터미널에서 `q` 키를 누르면 안전하게 종료됩니다.
+
+---
 
 1. 개요 (Overview)
 본 프로젝트는 산업 현장(데이터센터, 발전실 등)의 설비 사진을 분석하여, **엑셀에 정의된 점검 포인트(Inspection Point)**들의 상태를 자동으로 진단하는 시스템입니다. 이미지 기반의 AI 모델(YOLO, OCR)을 활용하여 아날로그 게이지, 디지털 게이지, 스위치/LED 등의 상태를 판독하고, 정상 범위를 벗어났는지 판단합니다.
