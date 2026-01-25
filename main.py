@@ -19,6 +19,7 @@ from loguru import logger
 from datetime import datetime
 from collections import Counter
 from ultralytics import YOLO
+import argparse
 
 # 설정 및 유틸리티 로드
 import config
@@ -43,9 +44,10 @@ from inspectors.sw_led_inspector import SW_LED_Inspector
 from inspectors.vlm_inspector import VLMInspector
 
 class DiagnosisSystem:
-    def __init__(self):
+    def __init__(self, visualize=True):
         self.base_path = config.BASE_DIR
         self.excel_path = config.EXCEL_FILE
+        self.visualize = visualize
         
         try:
             self.detector = YOLO(config.MODEL_CONFIG["classifier"])
@@ -135,7 +137,7 @@ class DiagnosisSystem:
             # [Step 2] Main YOLO Model (DG & CLS) - Single Pass
             # DGInspector가 모델을 매번 로드하는 비효율을 제거하고 main의 detector 사용
             # [Fix] conf를 0.1로 낮춰 미검출 방지
-            results = self.detector.predict(img_path, conf=0.1, verbose=False)
+            results = self.detector.predict(img_path, conf=0.4, verbose=False)
             
             dg_dets = []
             cls_dets = []
@@ -190,7 +192,7 @@ class DiagnosisSystem:
             all_detections.extend(cls_dets)
 
             # 4. 라벨 매핑 및 전처리
-            expected_types = list(set([p.inspection_point_type for p in points]))
+            expected_types = sorted(list(set([p.inspection_point_type for p in points])), key=len, reverse=True)
 
             # [Fix: Pre-calculate Result Path for Consistency]
             if points:
@@ -217,7 +219,10 @@ class DiagnosisSystem:
                     for cand in candidates:
                         norm_cand = str(cand).lower().replace("-", "").replace("_", "")
                         norm_det = str(det['label']).lower().replace("-", "").replace("_", "")
-                        if norm_cand == norm_det or norm_cand in norm_det:
+                        
+                        # Exact match or suffix match
+                        if norm_cand == norm_det: matched_target = target_type; break
+                        if any(norm_det == norm_cand + s for s in ["ok", "nok", "na"]):
                             matched_target = target_type; break
                     if matched_target: break
 
@@ -428,8 +433,9 @@ class DiagnosisSystem:
             saved_img_path = self.save_inspection_data(task, points[0] if points else None, final_img, summary_list, all_detections, img_path, structured_res_path)
             
             # [User Request] Show Result Window
-            cv2.imshow("Inspection Result", final_img)
-            cv2.waitKey(1)
+            if self.visualize:
+                cv2.imshow("Inspection Result", final_img)
+                cv2.waitKey(1)
 
             task.data_result_dir = saved_img_path
             task.state = DiagnosisState.COMPLETED
@@ -529,10 +535,11 @@ class DiagnosisSystem:
         return max(files, key=os.path.getmtime) if files else None
 
     def run(self):
-        logger.info("🚀 [Advanced Engine] DB Polling 시작...")
+        logger.info(f"🚀 [Advanced Engine] DB Polling 시작... (Visualization: {'ON' if self.visualize else 'OFF'})")
         while True:
             # UI Refresh (Handle Window Events)
-            cv2.waitKey(100)
+            if self.visualize:
+                cv2.waitKey(100)
             
             try:
                 db = SessionLocal()
@@ -552,7 +559,12 @@ class DiagnosisSystem:
                 db.close()
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="AI 설비 진단 통합 컨트롤러")
+    parser.add_argument("--withfig", action="store_true", help="결과 이미지 디스플레이(OpenCV) 활성화")
+    args = parser.parse_args()
+
     try:
-        DiagnosisSystem().run()
+        # 기본값은 비활성화, --withfig가 설정되면 True
+        DiagnosisSystem(visualize=args.withfig).run()
     except KeyboardInterrupt:
         logger.info("👋 종료합니다.")
