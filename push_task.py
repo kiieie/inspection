@@ -5,6 +5,8 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime
 import importlib.util
+import time
+import select
 
 # ======================================================
 # [Program Information]
@@ -587,11 +589,231 @@ def push_tasks_from_folder():
         print(f"❌ Error: {e}")
     finally:
         db.close()
+        
+def scan_auto():
+    """
+    config.BASE_DIR 하위의 파일들을 스캔하여 기존 리스트와 비교하고,
+    변경사항이 있으면 리스트를 갱신하며 새 파일을 DB에 추가합니다.
+    """
+    config_dir = PROJECT_ROOT / "config"
+    config_dir.mkdir(exist_ok=True)
+    list_path = config_dir / "push_file_list"
+    
+    # 1. 기존 리스트 로드
+    existing_files = set()
+    if list_path.exists():
+        with open(list_path, "r", encoding="utf-8") as f:
+            existing_files = {line.strip() for line in f if line.strip()}
+    
+    # 2. 현재 파일 스캔
+    base_dir = config.BASE_DIR
+    current_files = []
+    print(f"📂 Scanning BASE_DIR for changes: {base_dir}")
+    
+    for root, dirs, files in os.walk(base_dir):
+        for file in files:
+            if file.lower().endswith((".jpg", ".jpeg", ".png")):
+                full_path = os.path.join(root, file)
+                rel_path = os.path.relpath(full_path, base_dir)
+                current_files.append(rel_path)
+    
+    current_files.sort()
+    current_files_set = set(current_files)
+    
+    # 3. 변경 감지 및 처리
+    if current_files_set == existing_files:
+        print("✅ No changes detected. File list is up to date.")
+        return
+
+    print("⚠️ Changes detected in BASE_DIR!")
+    
+    # 새 파일 식별
+    new_files = current_files_set - existing_files
+    if new_files:
+        print(f"🆕 Found {len(new_files)} new files. Synchronizing with DB...")
+        db = SessionLocal()
+        try:
+            added_count = 0
+            for rel_path in sorted(list(new_files)):
+                parts = rel_path.split(os.sep)
+                # 예상 구조: Site / Mission / InspName / File
+                if len(parts) >= 4:
+                    site, mission, insp_name = parts[0], parts[1], parts[2]
+                    
+                    # 이미 존재하는지 확인
+                    exists = db.query(InspectionPoint).filter(
+                        InspectionPoint.site == site,
+                        InspectionPoint.mission_name == mission,
+                        InspectionPoint.inspection_name == insp_name
+                    ).first()
+                    
+                    if not exists:
+                        new_point = InspectionPoint(
+                            site=site,
+                            mission_name=mission,
+                            inspection_name=insp_name,
+                            inspection_point_type="Detected",
+                            comment="Auto-detected via --scanauto"
+                        )
+                        db.add(new_point)
+                        added_count += 1
+            
+            db.commit()
+            print(f"✅ DB Synchronization complete. Added {added_count} new inspection points.")
+        except Exception as e:
+            db.rollback()
+            print(f"❌ DB Update failed: {e}")
+        finally:
+            db.close()
+    
+    # 4. 리스트 갱신 저장
+    with open(list_path, "w", encoding="utf-8") as f:
+        for path in current_files:
+            f.write(path + "\n")
+    print(f"💾 Updated file list saved to: {list_path}")
+
+def scan_auto():
+    """
+    config.BASE_DIR 하위의 파일들을 스캔하여 기존 리스트와 비교하고,
+    변경사항이 있으면 리스트를 갱신하며 새 파일을 DB에 추가합니다.
+    (60초 주기로 반복 수행하며 'q'를 누르면 종료합니다)
+    """
+    config_dir = PROJECT_ROOT / "config"
+    config_dir.mkdir(exist_ok=True)
+    list_path = config_dir / "push_file_list"
+    
+    print("🚀 Starting continuous scan mode. (Press 'q' to quit)")
+    
+    while True:
+        # 1. 기존 리스트 로드
+        existing_files = set()
+        if list_path.exists():
+            with open(list_path, "r", encoding="utf-8") as f:
+                existing_files = {line.strip() for line in f if line.strip()}
+        
+        # 2. 현재 파일 스캔
+        base_dir = config.BASE_DIR
+        current_files = []
+        # print(f"📂 Scanning BASE_DIR for changes: {base_dir}")
+        
+        for root, dirs, files in os.walk(base_dir):
+            for file in files:
+                if file.lower().endswith((".jpg", ".jpeg", ".png")):
+                    full_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(full_path, base_dir)
+                    current_files.append(rel_path)
+        
+        current_files.sort()
+        current_files_set = set(current_files)
+        
+        # 3. 변경 감지 및 처리
+        if current_files_set != existing_files:
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] ⚠️ Changes detected in BASE_DIR!")
+            
+            # 새 파일 식별
+            new_files = current_files_set - existing_files
+            if new_files:
+                print(f"🆕 Found {len(new_files)} new files. Synchronizing with DB...")
+                db = SessionLocal()
+                try:
+                    added_count = 0
+                    for rel_path in sorted(list(new_files)):
+                        parts = rel_path.split(os.sep)
+                        if len(parts) >= 4:
+                            site, mission, insp_name = parts[0], parts[1], parts[2]
+                            
+                            # 1. 마스터 정보 확인 및 생성
+                            exists = db.query(InspectionPoint).filter(
+                                InspectionPoint.site == site,
+                                InspectionPoint.mission_name == mission,
+                                InspectionPoint.inspection_name == insp_name
+                            ).first()
+                            
+                            if not exists:
+                                new_point = InspectionPoint(
+                                    site=site,
+                                    mission_name=mission,
+                                    inspection_name=insp_name,
+                                    inspection_point_type="Detected",
+                                    comment="Auto-detected via --scanauto"
+                                )
+                                db.add(new_point)
+                                db.flush() # ID 생성을 위해 flush
+
+                            # 2. 태스크 생성 (InspectionData)
+                            new_task = InspectionData(
+                                site=site,
+                                mission_name=mission,
+                                inspection_name=insp_name,
+                                inspection_time=datetime.now().replace(microsecond=0),
+                                data_raw_dir=rel_path,
+                                data_result_dir="",
+                                state=DiagnosisState.QUEUED
+                            )
+                            db.add(new_task)
+                            
+                            try:
+                                db.commit()
+                                added_count += 1
+                                print(f"   ✅ [New Task] {insp_name} ({os.path.basename(rel_path)})")
+                            except Exception as e:
+                                db.rollback()
+                                print(f"   ❌ [DB Lock/Error] {insp_name}: {e}")
+                
+                    # 리스트 갱신 저장
+                    with open(list_path, "w", encoding="utf-8") as f:
+                        for path in current_files:
+                            f.write(path + "\n")
+                    if added_count > 0:
+                        print(f"✅ DB Synchronization complete. Created {added_count} new tasks.")
+                        print(f"💾 Updated file list saved to: {list_path}")
+                except Exception as e:
+                    print(f"❌ DB Session Error: {e}")
+                finally:
+                    db.close()
+            
+            # 리스트 갱신 저장
+            with open(list_path, "w", encoding="utf-8") as f:
+                for path in current_files:
+                    f.write(path + "\n")
+        else:
+            # print(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ No changes detected.")
+            pass
+
+        # 4. 'q' 입력 대기 (60초 또는 즉시 종료)
+        if wait_for_quit(60):
+            break
+
+def wait_for_quit(timeout):
+    """60초 동안 'q' 입력을 감시합니다."""
+    import tty, termios
+    fd = sys.stdin.fileno()
+    if not os.isatty(fd):
+        time.sleep(timeout)
+        return False
+
+    old_settings = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            # 0.1초 간격으로 스캔
+            rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
+            if rlist:
+                ch = sys.stdin.read(1)
+                if ch.lower() == 'q':
+                    print("\n👋 Stop signal ('q') received. Exiting...")
+                    return True
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+    return False
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         if sys.argv[1] == "--scan":
             push_tasks_from_folder()
+        elif sys.argv[1] == "--scanauto":
+            scan_auto()
         else:
             keyword = sys.argv[1]
             push_task_from_excel(keyword)
