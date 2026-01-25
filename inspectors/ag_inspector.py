@@ -70,8 +70,15 @@ class AGInspector:
             # 필수 포인트(Center, Start, End)가 없으면 불가능
             if p_c is None or p_s is None or p_e is None:
                 final_results.append({
-                    'label': label_name, 'value_ratio': 0.0, 'status_msg': "Missing Keypoints",
-                    'is_valid': False, 'box': [x1, y1, x2, y2], 'keypoints': kpts
+                    'label': label_name, 
+                    'value_ratio': 0.0, 
+                    'status_msg': "Missing Keypoints",
+                    'is_valid': False, 
+                    'box': [x1, y1, x2, y2], 
+                    'area': (x2 - x1) * (y2 - y1),
+                    'center_x': (x1 + x2) / 2,
+                    'center_y': (y1 + y2) / 2,
+                    'keypoints': kpts
                 })
                 continue
 

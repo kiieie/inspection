@@ -33,26 +33,36 @@ def is_type_compatible(excel_target, detected_label):
     norm_d = d_str.replace("-", "").replace("_", "")
     
     if norm_e == norm_d: return True
-    if norm_d.startswith(norm_e): return True
     
+    # [Refine] Suffix check: Only allow startswith if it ends at a boundary or is followed by ok/nok
+    suffixes = ["ok", "nok", "na"]
+    for s in suffixes:
+        if norm_d == norm_e + s: return True
+
     # 1. LABEL_MAP 확인
     if excel_target in config.LABEL_MAP:
         mapping = config.LABEL_MAP[excel_target]
         # 리스트일 경우와 단일 문자열일 경우 모두 대응
         if isinstance(mapping, list):
-            if any(d_str.startswith(m.lower()) for m in mapping): return True
+            for m in mapping:
+                m_norm = m.lower().replace("-", "").replace("_", "")
+                if norm_d == m_norm: return True
+                for s in suffixes:
+                    if norm_d == m_norm + s: return True
         else:
-            if d_str.startswith(mapping.lower()): return True
+            m_norm = mapping.lower().replace("-", "").replace("_", "")
+            if norm_d == m_norm: return True
+            for s in suffixes:
+                if norm_d == m_norm + s: return True
 
-    # 2. 기본 매칭 (startswith)
-    norm_target = e_str.replace(" ", "_")
-    if d_str.startswith(norm_target): return True
+    # 2. 기본 매칭 (Delimited match)
+    # e.g. "LED_Red" should not match "LED_Red-dot_on", but "LED_Red_ok" is fine.
     
     # 3. [New] Fuzzy Matching (핵심 키워드 포함 여부)
     # 예: "DG_Air-Conditioner" (Target) <-> "DG_Temp_Air-Conditioner_NA" (Detected)
     # 접두어(DG_, AG_) 제거 후 남은 핵심 단어가 포함되어 있으면 매칭 인정
     prefixes = ["dg_", "ag_", "sw_", "led_", "etc_"]
-    target_core = norm_target
+    target_core = norm_e
     for p in prefixes:
         if target_core.startswith(p):
             target_core = target_core[len(p):]

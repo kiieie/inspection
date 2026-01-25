@@ -297,6 +297,34 @@ def interactive_mode():
 
                 if not found:
                     print("⚠️ No more valid tasks found in Excel.")
+            elif char.lower() == 'f':
+                # Jump to Next Inspection Point & Push LATEST
+                current_insp = str(df.iloc[current_idx-1][col_mapping['insp']]).strip() if current_idx > 0 else None
+                found_next = False
+                
+                search_idx = current_idx
+                while search_idx < len(df):
+                    row = df.iloc[search_idx]
+                    insp_name = str(row[col_mapping['insp']]).strip()
+                    if insp_name != current_insp:
+                        found_next = True
+                        break
+                    search_idx += 1
+                
+                if found_next:
+                    row = df.iloc[search_idx]
+                    mission = str(row[col_mapping['mission']]).strip()
+                    insp_name = str(row[col_mapping['insp']]).strip()
+                    
+                    print(f"   ⏩ Jumping to: {insp_name}")
+                    if push_row_to_db(row, col_mapping):
+                        last_pushed_insp = insp_name
+                        current_idx = search_idx + 1
+                    else:
+                        print(f"   ⚠️ Failed to push latest for {insp_name}")
+                        current_idx = search_idx + 1 # Still move there
+                else:
+                    print("   ⚠️ No more inspection points found.")
             else:
                 pass
                 
@@ -414,6 +442,9 @@ def push_tasks_from_folder():
                 'file_name': file_name,
             })
     
+    # [Sort by Path] Ensure deterministic order for 'f' key logic
+    file_list.sort(key=lambda x: x['rel_path'])
+
     total = len(file_list)
     print(f"✅ Found {total} valid files.")
     
@@ -421,7 +452,7 @@ def push_tasks_from_folder():
         print("⚠️ No files to process.")
         return
     
-    print("⌨️  Interactive Mode: [d]=Push & Next, [s]=Same, [a]=Prev, [q]=Quit")
+    print("⌨️  Interactive Mode: [d]=Push & Next, [f]=Next Insp, [s]=Same, [a]=Prev, [q]=Quit")
     
     db = SessionLocal()
     current_idx = 0
@@ -453,7 +484,7 @@ def push_tasks_from_folder():
 
 
 
-            print("   [d]=Push&Next, [n]=Skip&Next, [a]=Prev, [s]=Same, [q]=Quit: ", end="", flush=True)
+            print("   [d]=Push&Next, [f]=Next Insp, [n]=Skip&Next, [a]=Prev, [s]=Same, [q]=Quit: ", end="", flush=True)
             
             char_raw = getch()
             char = char_raw.lower()
@@ -484,6 +515,56 @@ def push_tasks_from_folder():
                 if char == 'd':
                     current_idx += 1
                 # if 's', current_idx stays same
+            elif char == 'f':
+                # Jump to Next Inspection Point & Push LATEST
+                current_insp = item['insp_name']
+                next_idx = current_idx + 1
+                found_next = False
+                
+                while next_idx < total:
+                    if file_list[next_idx]['insp_name'] != current_insp:
+                        found_next = True
+                        break
+                    next_idx += 1
+                
+                if found_next:
+                    target_item = file_list[next_idx]
+                    target_insp_name = target_item['insp_name']
+                    
+                    # Find LATEST image in the target folder
+                    target_folder_rel = target_item['rel_folder_path']
+                    target_folder_abs = os.path.join(base_dir, target_folder_rel)
+                    
+                    jpg_files = glob.glob(os.path.join(target_folder_abs, "*.[jJ][pP][gG]"))
+                    if jpg_files:
+                        latest_jpg_abs = max(jpg_files, key=os.path.getmtime)
+                        latest_jpg_rel = os.path.relpath(latest_jpg_abs, base_dir)
+                        
+                        print(f"   ⏩ Jumping to: {target_insp_name}")
+                        print(f"   🎯 Latest Image: {os.path.basename(latest_jpg_rel)}")
+                        
+                        new_task = InspectionData(
+                            site=target_item['site'],
+                            mission_name=target_item['mission'],
+                            inspection_name=target_item['insp_name'],
+                            inspection_time=datetime.now().replace(microsecond=0),
+                            data_raw_dir=latest_jpg_rel,
+                            data_result_dir="",
+                            state=DiagnosisState.QUEUED
+                        )
+                        db.add(new_task)
+                        db.commit()
+                        db.refresh(new_task)
+                        pushed_count += 1
+                        print(f"   ✅ Pushed (ID: {new_task.id})")
+                        
+                        # Update current_idx to the first file of the next folder
+                        current_idx = next_idx
+                    else:
+                        print(f"   ⚠️ No JPG files found in next folder: {target_insp_name}")
+                        current_idx = next_idx # Still move there
+                else:
+                    print("   ⚠️ No more inspection points found.")
             elif char == 'n':
                 # Skip & Next
                 print("   ⏭️ Skipped.")
