@@ -242,19 +242,22 @@ STATUS_MAPPING = {
 
 # [config.py] 에 추가
 
-# # [VLM Settings]
+# [VLM Settings]
 VLM_CONFIG = {
-    # "api_url": "http://10.73.136.208:11434/api/generate",  # 외부 서버일 경우 IP 변경
-    "api_url": "http://localhost:11434/api/generate",  # 외부 서버일 경우 IP 변경
-    "model": "qwen3-vl:8b",  # 2026-01-13: 사용자 요청에 따라 qwen3-vl:8b 모델 사용
-    "stream": True
+    "use_backend": "ollama",  # "ollama" or "trtllm"
+    "ollama": {
+        "api_url": "http://localhost:11434/api/generate",  # 혹은 외부 서버 IP: "http://10.134.34.208:11434/api/generate"
+        "model": "qwen3-vl:8b",
+        "stream": False
+    },
+    "trtllm": {
+        "model_urls": {
+            "4b": "http://10.52.194.208:18080/qwen3_vl/4b/infer",
+            "8b": "http://10.52.194.208:18080/qwen3_vl/8b/infer"
+        },
+        "default_model": "8b"
+    }
 }
-# [config.py]
-# VLM_CONFIG = {
-#     "api_url": "http://localhost:11434/api/generate",
-#     "model": "llava:latest",  # 23GB짜리 qwen 대신 4.7GB짜리 llava 사용
-#     "stream": True
-# }
 # [VLM Prompts Mapping]
 # 엑셀의 inspection_point_type에 따라 다른 질문을 던집니다.
 # 키(Key)는 엑셀의 타입명 일부 혹은 전체입니다.
