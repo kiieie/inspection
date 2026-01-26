@@ -195,6 +195,7 @@ LABEL_MAP = {
     "LED_Red-dot_on":["LED_Red-dot_on_nok","LED_Red-dot_on_ok"],
     "LED_Yellow_off":["LED_Yellow_off_ok","LED_Yellow_off_nok"],
     "LED_Yellow_on":["LED_Yellow_on_ok","LED_Yellow_on_nok"],
+    "Sw_Nobe":["Sw_Nobe_Center_ok","Sw_Nobe_Center_nok", "Sw_Nobe_Left_ok","Sw_Nobe_Left_nok", "Sw_Nobe_Right_ok","Sw_Nobe_Right_nok"],
     "Sw_Nobe_Center":["Sw_Nobe_Center_ok","Sw_Nobe_Center_nok"],
     "Sw_Nobe_Left":["Sw_Nobe_Left_ok","Sw_Nobe_Left_nok"],
     "Sw_Nobe_Right":["Sw_Nobe_Right_ok","Sw_Nobe_Right_nok"],

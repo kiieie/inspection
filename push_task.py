@@ -693,10 +693,13 @@ def scan_auto():
         
         # 2. 현재 파일 스캔
         base_dir = config.BASE_DIR
-        current_files = []
-        # print(f"📂 Scanning BASE_DIR for changes: {base_dir}")
+        prefix = getattr(config, 'IMAGE_PATH_PREFIX', "")
+        scan_dir = os.path.join(base_dir, prefix) if prefix else base_dir
         
-        for root, dirs, files in os.walk(base_dir):
+        current_files = []
+        # print(f"📂 Scanning for changes in: {scan_dir}")
+        
+        for root, dirs, files in os.walk(scan_dir):
             for file in files:
                 if file.lower().endswith((".jpg", ".jpeg", ".png")):
                     full_path = os.path.join(root, file)
@@ -719,6 +722,12 @@ def scan_auto():
                     added_count = 0
                     for rel_path in sorted(list(new_files)):
                         parts = rel_path.split(os.sep)
+                        # config.IMAGE_PATH_PREFIX가 설정되어 있고 경로의 시작이 prefix와 같다면 prefix를 건너뜁니다.
+                        prefix = getattr(config, 'IMAGE_PATH_PREFIX', "")
+                        if prefix and len(parts) > 0 and parts[0] == prefix:
+                            parts = parts[1:]
+
+                        # 예상 구조: Site / Mission / InspName / File
                         if len(parts) >= 4:
                             site, mission, insp_name = parts[0], parts[1], parts[2]
                             

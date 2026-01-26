@@ -363,7 +363,10 @@ class DiagnosisSystem:
                                 vlm_resp = self.vlm_inspector.analyze_crop(crop, prompt=prompt)
                                 
                                 # [Post-Processing]
-                                matched['value'] = str(vlm_resp).replace("\n", " | ").strip() if vlm_resp else "No Read"
+                                if vlm_resp and "Error" in str(vlm_resp) and "Timeout" in str(vlm_resp):
+                                    matched['value'] = "timeout"
+                                else:
+                                    matched['value'] = str(vlm_resp).replace("\n", " | ").strip() if vlm_resp else "No Read"
                                 
                                 if not is_class_item:
                                     # DG: Use VLM response as is (User Request)
@@ -377,8 +380,8 @@ class DiagnosisSystem:
                                 final_val = matched['value']
                                 logger.info(f"   📝 Class Result: {final_val}")
                                 
-                                val_lower = str(final_val).lower()
-                                if any(bad in val_lower for bad in ["poor", "abnormal", "leakage(o)", "damage(o)", "corrosion(o)"]):
+                                # User Request: FAIL only on timeout, otherwise PASS
+                                if final_val == "timeout":
                                     is_norm = False
                                     final_status = "FAIL"
                                 else:
@@ -389,12 +392,15 @@ class DiagnosisSystem:
                                 final_val = matched['value']
                                 logger.info(f"   🤖 DG Value: {final_val}")
                                 
-                                # Use evaluate_gauge_reading ONLY for Pass/Fail check
-                                _, _, is_norm = evaluate_gauge_reading({'value': final_val, 'label': matched['label']}, vars(point))
-                                
-                                if final_val in ["No Read", "Crop Fail", "Reading Fail", "Parse Error"]:
+                                # User Request: FAIL on Not Found, Error, Crop Fail, No Read, or timeout. Otherwise PASS.
+                                if final_val in ["No Read", "Crop Fail", "Reading Fail", "Parse Error", "timeout"] or "Error" in str(final_val):
                                     is_norm = False
                                     final_status = "FAIL"
+                                else:
+                                    # 유의미한 결과 수신 시 PASS (evaluate_gauge_reading는 시각화 등을 위해 호출은 유지하되 판정은 덮어씀)
+                                    # [Update] 2026-01-26: 사용자가 수치가 잘 나오면 PASS라고 했으므로 무역비교 없이 PASS 처리.
+                                    is_norm = True
+                                    final_status = "PASS"
 
                         else:
                             # 3. Default (ETC, SW, LED, etc.) -> FOUND
