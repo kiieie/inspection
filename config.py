@@ -285,27 +285,41 @@ VLM_PROMPTS = {
         1) Cleaning State(Good/Poor):""",
     
     # 1. Digital Gauges (Generic)
-    "DG_Air-Conditioner": "1 line only. Fixed format. No explanation. Number only. 1) Number",
-    "DG_Gen-Status": "1 line only. Fixed format. No explanation. Number only. 1) Coolant Temp",
-    "DG_Electric-Water-Heater": "1 line only. Fixed format. No explanation. Red number only. 1) Number",
-    "DG_Pump": "1 line only. Fixed format. No explanation. Number only. 1) Number",
+    # "DG_Air-Conditioner": "1 line only. Fixed format. No explanation. Number only. 1) Number",
+    "DG_Air-Conditioner": "Read the red number. Output format: (Number). Example: (24). No other text.",
+    # "DG_Gen-Status": "1 line only. Fixed format. No explanation. Number only. 1) Coolant Temp",
+    "DG_Gen-Status": "Read the Coolant Temp number. Output format: (Number). Example: (85). No other text.",
+    # "DG_Electric-Water-Heater": "1 line only. Fixed format. No explanation. Red number only. 1) Number",
+    "DG_Electric-Water-Heater": "Read the red number. Output format: (Number). Example: (45). No other text.",
+    # "DG_Pump": "1 line only. Fixed format. No explanation. Number only. 1) Number",
+    "DG_Pump": "Read the number. Output format: (Number). Example: (3.5). No other text.",
 
     # 2. Status Indicators
-    "DG_BMS": "1 line only. Fixed format. No explanation. If Top-Right shows Normal operation write 'Normal', else 'Abnormal'. 1) Status",
+    "DG_BMS": "1 line only. Fixed format. No explanation. If Top-Right shows Normal operation write 'Normal', else 'Abnormal'. No other text.",
     
     # 3. Complex Meters
-    "DG_TR-temp": "1 lines only. Fixed format. No explanation. Red numbers. 1) PEAK ; 2) Temp. Controller",
-    "DG_Digital-Integrated-Meter": "1 lines only. Fixed format. No explanation. number only. 1) Va ; 2) Ia ; 3) P ; 4) WH",
-    "DG_GIMAC-DC": "1 lines only. Fixed format. No explanation. Numbers only. 1) Top ; 2) Middle ; 3) Bottom",
-    "DG_PB-max": "1 lines only. Fixed format. No explanation. Large numbers 4 columns only. if not detected NaN. 1) Col 1 ; 2) Col 2 ; 3) Col 3 ; 4) Col 4",
-    "DG_Thermo-hygro": "1 lines only. Fixed format. No explanation. Numbers. if not detected NaN. 1) Temp  ; 2) Humidity",
-    "DG_Digital-Meter": "1 lines only. Fixed format. all data should be 4 digit. No explanation. Numbers only. if not detected NaN. 1) Top  ; 2) Middle  ; 3) Bottom",
-    "DG_Boost-pump": "1 lines only. Fixed format. No explanation. Numbers inside top circle.if not detected NaN. 1) Set Pressure  ;  2) Current Pressure",
+    # 3. Complex Meters
+    # "DG_TR-temp": "1 lines only. Fixed format. No explanation. Red numbers. 1) PEAK ; 2) Temp. Controller",
+    "DG_TR-temp": "Read PEAK and Temp. Controller numbers. Output format: (PEAK, Temp). Example: (37|26.5). Separator: Pipe (|). No other text.",
+    # "DG_Digital-Integrated-Meter": "1 lines only. Fixed format. No explanation. number only. 1) Va ; 2) Ia ; 3) P ; 4) WH",
+    "DG_Digital-Integrated-Meter": "Read Va, Ia, P, WH values. Output format: (Va, Ia, P, WH). Example: (220|10|50|1000). Separator: Pipe (|). No other text.",
+    # "DG_GIMAC-DC": "1 lines only. Fixed format. No explanation. Numbers only. 1) Top ; 2) Middle ; 3) Bottom",
+    "DG_GIMAC-DC": "Read Top, Middle, Bottom numbers. Output format: (Top, Middle, Bottom). Example: (220|60|120). Separator: Pipe (|). No other text.",
+    # "DG_PB-max": "1 lines only. Fixed format. No explanation. Large numbers 4 columns only. if not detected NaN. 1) Col 1 ; 2) Col 2 ; 3) Col 3 ; 4) Col 4",
+    "DG_PB-max": "Read the 4 large numbers in columns. Output format: (Col1, Col2, Col3, Col4). Example: (100|200|300|400). Separator: Pipe (|). No other text.",
+    # "DG_Thermo-hygro": "1 lines only. Fixed format. No explanation. Numbers. if not detected NaN. 1) Temp  ; 2) Humidity",
+    "DG_Thermo-hygro": "Read Temp and Humidity. Output format: (Temp, Humidity). Example: (18.3|39). Separator: Pipe (|). No other text.",
+    "DG_Digital-Meter": "Read Top, Middle, Bottom red numbers 1 lines only. No explanation. if not detected NaN. Output format: (Top| Middle| Bottom)",
+    # "DG_Digital-Meter": "Read Top, Middle, Bottom numbers. Top number has 1 digits after decimal point. care about decimal point on Middle and Bottom numbers. all have 4 digits.  Output format: (Top| Middle| Bottom). Example: (xxxx|0.000|0.000). Separator: Pipe (|). No other text.",
+    # "DG_Boost-pump": "1 lines only. Fixed format. No explanation. Numbers inside top circle.if not detected NaN. 1) Set Pressure  ;  2) Current Pressure",
+    "DG_Boost-pump": "Read Set Pressure and Current Pressure inside the circle. Output format: (Set, Current). Example: (5.9|5.7). Separator: Pipe (|). No other text.",
     
     # 4. UPS Systems (Complex Layouts)
-    "DG_UPS-100KVA": """1 lines only. Fixed format. No explanation. Bypass is at top-left R S T Voltage(V). Input is at bottom-left R S T Voltage(V) and Current(A). Battery is at bottom-center Voltage(V) and below it Current(A). Output is at bottom-right R S T Voltage(V) and Current(A).1) Input Voltage(V) (R), (S), (T) ; Current(A) (R), (S), (T)  ; 2) Output Voltage(V) (R), (S), (T) ; Current(A) (R), (S), (T)  ;  3) Bypass Voltage(V) (R), (S), (T)  ; 4) Battery (V), (A)""",
+    # "DG_UPS-100KVA": """1 lines only. Fixed format. No explanation. Bypass is at top-left R S T Voltage(V). Input is at bottom-left R S T Voltage(V) and Current(A). Battery is at bottom-center Voltage(V) and below it Current(A). Output is at bottom-right R S T Voltage(V) and Current(A).1) Input Voltage(V) (R), (S), (T) ; Current(A) (R), (S), (T)  ; 2) Output Voltage(V) (R), (S), (T) ; Current(A) (R), (S), (T)  ;  3) Bypass Voltage(V) (R), (S), (T)  ; 4) Battery (V), (A)""",
+    "DG_UPS-100KVA": """Read Input V(R,S,T), Input A(R,S,T), Output V(R,S,T), Output A(R,S,T), Bypass V(R,S,T), Battery V, Battery A. Output format: (InputV_R, InputV_S, InputV_T, InputA_R, InputA_S, InputA_T, OutputV_R, OutputV_S, OutputV_T, OutputA_R, OutputA_S, OutputA_T, BypassV_R, BypassV_S, BypassV_T, BattV, BattA). Example: (220, 220, 220, 10, 10, 10, 220, 220, 220, 10, 10, 10, 220, 220, 220, 500, 10). Separator: Comma. Forbidden: Semicolon. No other text.""",
 
-    "DG_UPS-600KVA": """1 lines only. Fixed format. No explanation. Input is at bottom-left R S T Voltage(V) and Current(A). Output is below it R S T Voltage(V) and Current(A). Bypass is below output R S T Voltage(V). SOC is at bottom-right SOC % and Voltage(V), Current(A). 1) Input Voltage(V) (R), (S), (T) ; Current(A) (R), (S), (T)  ; 2) Output Voltage(V) (R), (S), (T)  ;  Current(A) (R), (S), (T)  ;  3) Bypass Voltage(V) (R), (S), (T)  ; 4) SOC % (V), (A)""",
+    # "DG_UPS-600KVA": """1 lines only. Fixed format. No explanation. Input is at bottom-left R S T Voltage(V) and Current(A). Output is below it R S T Voltage(V) and Current(A). Bypass is below output R S T Voltage(V). SOC is at bottom-right SOC % and Voltage(V), Current(A). 1) Input Voltage(V) (R), (S), (T) ; Current(A) (R), (S), (T)  ; 2) Output Voltage(V) (R), (S), (T)  ;  Current(A) (R), (S), (T)  ;  3) Bypass Voltage(V) (R), (S), (T)  ; 4) SOC % (V), (A)""",
+    "DG_UPS-600KVA": """Read Input V(R,S,T), Input A(R,S,T), Output V(R,S,T), Output A(R,S,T), Bypass V(R,S,T), SOC %, Batt V, Batt A. Output format: (InputV_R, InputV_S, InputV_T, InputA_R, InputA_S, InputA_T, OutputV_R, OutputV_S, OutputV_T, OutputA_R, OutputA_S, OutputA_T, BypassV_R, BypassV_S, BypassV_T, SOC, BattV, BattA). No other text.""",
     
     # Default
     "DEFAULT": "Describe the equipment state in 1-2 lines. English only. Focus on damage or abnormality."

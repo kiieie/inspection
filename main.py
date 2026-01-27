@@ -79,8 +79,81 @@ class DiagnosisSystem:
                 InspectionPoint.inspection_name == insp_name
             ).all()
 
+            # [Fix] photo_time을 미리 추출 (No Master Info 처리 시 필요)
+            try:
+                # Filename pattern: SpotCam-PTZ-2_20260106_111042.jpg
+                filename = os.path.basename(task.data_raw_dir)
+                time_part = filename.split('_')[-1].split('.')[0] # 111042
+                date_part = filename.split('_')[-2] # 20260106
+                photo_time_str = f"{date_part}_{time_part}"
+                photo_time = datetime.strptime(photo_time_str, "%Y%m%d_%H%M%S")
+                logger.info(f"📸 Extracted Photo Time: {photo_time}")
+            except Exception:
+                logger.warning(f"⚠️ Failed to extract photo time from {task.data_raw_dir}, using now()")
+                photo_time = datetime.now()
+
             if not points:
                 logger.warning(f"⚠️ 마스터 정보 없음: {mission_name} / {insp_name}")
+                
+                # [Fix] Master 정보가 없어도 결과 이미지 저장 및 DB 기록 수행
+                img_path = os.path.join(self.base_path, task.data_raw_dir)
+                if os.path.exists(img_path):
+                    # 1. Image Load
+                    img = cv2.imread(img_path)
+                    
+                    if img is not None:
+                        # 2. Prepare Result Path
+                        res_dir = Path("test_results")
+                        res_dir.mkdir(parents=True, exist_ok=True)
+                        unique_sub = f"task_{task_id}_{int(time.time())}"
+                        
+                        # [Fix] Use actual site/mission/inspection even if points are missing (Requested by User)
+                        # Previous: os.path.join(config.RESULT_BASE_DIR, "Unknown", "Unknown", "Unknown", unique_sub)
+                        target_dir = os.path.join(config.RESULT_BASE_DIR, task.site, mission_name, insp_name, unique_sub)
+                        os.makedirs(target_dir, exist_ok=True)
+                        
+                        orig_name = os.path.splitext(os.path.basename(img_path))[0]
+                        structured_res_path = os.path.join(target_dir, f"{orig_name}_result.jpg")
+                        res_abs_path = os.path.abspath(structured_res_path)
+
+                        # 3. Save Result Image (Original)
+                        cv2.imwrite(res_abs_path, img)
+                        logger.info(f"   💾 Saved Result Image (No Master): {res_abs_path}")
+
+                        # 4. Save DB Record (InspectionResult)
+                        # Create a dummy point object for _save_result or manually insert
+                        # Since point is None, we construct InspectionResult directly here to avoid issues
+                        res = InspectionResult(
+                            site=task.site,
+                            mission_name=task.mission_name,
+                            inspection_name=task.inspection_name,
+                            facility_1="Unknown",
+                            facility_2="Unknown",
+                            inspection_point_type="Unknown",
+                            inspection_point_id=0,
+                            result_value="No Master Info",
+                            judgement="FAIL",
+                            data_raw_dir=img_path,
+                            data_result_dir=res_abs_path,
+                            spatial_info={"box": [0,0,0,0]},
+                            inspection_datetime=datetime.now().replace(microsecond=0),
+                            photo_time=photo_time
+                        )
+                        db.add(res)
+                        
+                        # [Request] Visualization for No Master Info
+                        if self.visualize:
+                            cv2.imshow("Inspection Result", img)
+                            cv2.waitKey(1)
+
+                        task.data_result_dir = res_abs_path
+                        task.state = DiagnosisState.COMPLETED # Mark as completed (processed) even if failed logic
+                        db.commit()
+                        logger.info(f"✅ 태스크 {task_id} 처리 완료 (No Master Info)")
+                        return
+                    else:
+                        logger.error("❌ Image Load Failed (No Master)")
+                
                 task.state = DiagnosisState.FAILED
                 db.commit()
                 return

@@ -47,7 +47,7 @@ class VLMInspector:
             logger.error(f"이미지 인코딩 실패 ({image_path}): {e}")
             return None
 
-    def _analyze_ollama(self, b64_image, prompt, timeout=20):
+    def _analyze_ollama(self, b64_image, prompt, timeout=60):
         """Ollama API를 이용한 분석 (타임아웃 20초)"""
         payload = {
             "model": self.model,
@@ -60,7 +60,7 @@ class VLMInspector:
         response.raise_for_status()
         return response.json().get("response", "").strip()
 
-    def _analyze_trtllm(self, b64_image, prompt, inspection_type, timeout=20):
+    def _analyze_trtllm(self, b64_image, prompt, inspection_type, timeout=40):
         """TRTLLM API를 이용한 분석 (타임아웃 20초)"""
         system_content = self._get_system_role(inspection_type)
         
@@ -69,7 +69,10 @@ class VLMInspector:
             "temperature": 1.0, # TRTLLM에서 Ollama와 유사한 답변 형도를 위해 조정 가능
             "top_p": 1.0,
             "top_k": 50,
-            "max_generate_length": 128,
+            "max_generate_length": 256,
+            "max_new_tokens": 256,
+            "max_tokens": 256,
+            "max_output_len": 256,
             "requests": [
                 {
                     "messages": [
@@ -101,11 +104,21 @@ class VLMInspector:
             
             # 2. 구분자 통일 (Ollama는 세미콜론(;)을 주로 사용함)
             # 만약 공백으로 구분되어 있다면 세미콜론으로 변경 시도 (DG 관련)
-            if inspection_type.startswith("DG_") and ";" not in answer and " " in answer:
+            # [Update] 모든 백엔드에 대해 Separator 통일 (Pipe -> Comma)
+            answer = answer.replace("|", ", ")
+
+            # [Update] TRT-LLM Semicolon Cleanup
+            if self.backend == "trtllm":
+                import re
+                answer = re.sub(r'[;]', '', answer) # Remove all semicolons
+                answer = re.sub(r',\s*,', ',', answer) # Fix double commas
+
+            # [Legacy Fix] 만약 괄호가 없고, 콤마도 없는데 공백만 있다면 (예: 10 20 30) 콤마로 변환
+            if inspection_type.startswith("DG_") and "(" not in answer and "," not in answer and " " in answer:
                 # 1) 2) 등의 인덱스가 붙어있는 경우 처리
                 import re
                 answer = re.sub(r'\d+\)\s*', '', answer)
-                answer = "; ".join([s.strip() for s in answer.split() if s.strip()])
+                answer = ", ".join([s.strip() for s in answer.split() if s.strip()])
             
             return answer.strip()
         except requests.exceptions.Timeout:
@@ -163,6 +176,9 @@ class VLMInspector:
                 answer = self._analyze_trtllm(b64_image, prompt, inspection_type)
             else:
                 answer = self._analyze_ollama(b64_image, prompt)
+
+            # [Update] 모든 백엔드에 대해 Separator 통일 (Pipe -> Comma)
+            answer = answer.replace("|", ", ")
 
             if not answer.strip():
                 logger.warning(f"⚠️ Empty VLM Response from {self.backend}")
