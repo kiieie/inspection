@@ -274,6 +274,7 @@ DG_VLM_CONFIG = {
         },
         "default_model": "8b"
     }
+
 }
 # [VLM Prompts Mapping]
 # 엑셀의 inspection_point_type에 따라 다른 질문을 던집니다.
