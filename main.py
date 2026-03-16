@@ -62,6 +62,7 @@ class DiagnosisSystem:
 
     def process_task(self, task_id):
         """태스크 그룹 전체를 분석하고 결과를 각각 저장합니다."""
+        # breakpoint()
         db = SessionLocal()
         try:
             # 1. 태스크 및 마스터 데이터 로드
@@ -143,7 +144,11 @@ class DiagnosisSystem:
                         
                         # [Request] Visualization for No Master Info
                         if self.visualize:
-                            cv2.imshow("Inspection Result", img)
+                            win_name = "AI Inspection Display"
+                            cv2.namedWindow(win_name, cv2.WINDOW_AUTOSIZE)
+                            win_title = f"[{task.site}] {task.mission_name} - {insp_name}"
+                            cv2.setWindowTitle(win_name, win_title)
+                            cv2.imshow(win_name, img)
                             cv2.waitKey(1)
 
                         task.data_result_dir = res_abs_path
@@ -406,74 +411,49 @@ class DiagnosisSystem:
                                     if len(kp) >= 3 and kp[2] > 0.25:
                                         cv2.circle(final_img, (int(kp[0]), int(kp[1])), 4, (0,0,255) if i in [2,4] else (255,0,0), -1)
                         
-                        elif target.upper().startswith("DG") or "DIGITAL" in target.upper() or "CLASS_" in target.upper():
-                            # [VLM Logic] Digital Gauge OR Class Item
+                        elif target.upper().startswith("DG") or "DIGITAL" in target.upper():
+                            # [DG Logic] 분리된 DGInspector 사용 (크롭 이미지 분석)
                             x1, y1, x2, y2 = map(int, box_info)
                             h, w = img.shape[:2]
-                            x1, y1 = max(0, x1), max(0, y1)
-                            x2, y2 = min(w, x2), min(h, y2_in := y2)
+                            pad = 10
+                            crop = img[max(0, y1-pad):min(h, y2+pad), max(0, x1-pad):min(w, x2+pad)]
                             
-                            is_class_item = "CLASS_" in target.upper()
+                            # 프롬프트 구성
+                            prompt = config.VLM_PROMPTS.get(target, config.VLM_PROMPTS["DEFAULT"])
+                            if prompt == config.VLM_PROMPTS["DEFAULT"]:
+                                for key, p_text in config.VLM_PROMPTS.items():
+                                    if key in target:
+                                        prompt = p_text
+                                        break
                             
-                            crop = None
-                            if is_class_item:
-                                # User Request: Use FULL IMAGE for Class items
-                                crop = img
-                            elif x2 > x1 and y2 > y1:
-                                pad = 10
-                                crop = img[max(0, y1-pad):min(h, y2+pad), max(0, x1-pad):min(w, x2+pad)]
+                            # DGInspector 호출
+                            vlm_resp = self.dg_inspector.analyze_dg(crop, prompt, target)
                             
-                            if crop is not None:
-                                # [Prompt Selection]
-                                prompt = config.VLM_PROMPTS.get(target, config.VLM_PROMPTS["DEFAULT"])
-                                if prompt == config.VLM_PROMPTS["DEFAULT"]:
-                                    for key, p_text in config.VLM_PROMPTS.items():
-                                        if key in target:
-                                            prompt = p_text
-                                            break
-                                
-                                # VLM Query
-                                vlm_resp = self.vlm_inspector.analyze_crop(crop, prompt=prompt)
-                                
-                                # [Post-Processing]
-                                if vlm_resp and "Error" in str(vlm_resp) and "Timeout" in str(vlm_resp):
-                                    matched['value'] = "timeout"
-                                else:
-                                    matched['value'] = str(vlm_resp).replace("\n", " | ").strip() if vlm_resp else "No Read"
-                                
-                                if not is_class_item:
-                                    # DG: Use VLM response as is (User Request)
-                                    pass
+                            matched['value'] = str(vlm_resp).replace("\n", " | ").strip() if vlm_resp else "No Read"
+                            final_val = matched['value']
+                            logger.info(f"   🤖 DG Value: {final_val} (via DGInspector)")
+                            
+                            if final_val in ["No Read", "Crop Fail", "Reading Fail", "Parse Error", "timeout"] or "Error" in str(final_val):
+                                is_norm = False
+                                final_status = "FAIL"
+                            else:
+                                is_norm = True
+                                final_status = "PASS"
 
-                            else:
-                                matched['value'] = "Crop Fail"
+                        elif "CLASS_" in target.upper():
+                            # [Class Logic] 분리된 VLMInspector 사용 (전체 이미지 분석)
+                            vlm_resp = self.vlm_inspector.analyze_class(img_path, target)
                             
-                            if is_class_item:
-                                # Class Item Logic: Just write VLM data
-                                final_val = matched['value']
-                                logger.info(f"   📝 Class Result: {final_val}")
-                                
-                                # User Request: FAIL only on timeout, otherwise PASS
-                                if final_val == "timeout":
-                                    is_norm = False
-                                    final_status = "FAIL"
-                                else:
-                                    is_norm = True
+                            matched['value'] = str(vlm_resp).replace("\n", " | ").strip() if vlm_resp else "No Read"
+                            final_val = matched['value']
+                            logger.info(f"   📝 Class Result: {final_val} (via VLMInspector)")
+                            
+                            if final_val == "timeout":
+                                is_norm = False
+                                final_status = "FAIL"
                             else:
-                                # DG Evaluation
-                                # User Request: Use raw VLM response as final_val
-                                final_val = matched['value']
-                                logger.info(f"   🤖 DG Value: {final_val}")
-                                
-                                # User Request: FAIL on Not Found, Error, Crop Fail, No Read, or timeout. Otherwise PASS.
-                                if final_val in ["No Read", "Crop Fail", "Reading Fail", "Parse Error", "timeout"] or "Error" in str(final_val):
-                                    is_norm = False
-                                    final_status = "FAIL"
-                                else:
-                                    # 유의미한 결과 수신 시 PASS (evaluate_gauge_reading는 시각화 등을 위해 호출은 유지하되 판정은 덮어씀)
-                                    # [Update] 2026-01-26: 사용자가 수치가 잘 나오면 PASS라고 했으므로 무역비교 없이 PASS 처리.
-                                    is_norm = True
-                                    final_status = "PASS"
+                                is_norm = True
+                                final_status = "PASS"
 
                         else:
                             # 3. Default (ETC, SW, LED, etc.) -> FOUND
@@ -497,13 +477,69 @@ class DiagnosisSystem:
                     self._save_result(db, task.id, point, final_val, final_status, img_path, box_info, structured_res_path, photo_time)
                     summary_list.append({"type": target, "found": matched is not None})
 
-            # [User Request] Draw Unmatched (Unused) Detections as Gray Boxes
+            # [User Request] Draw Unmatched (Unused) Detections as Gray Boxes and Save them
             for d in all_detections:
                 if not d.get('used', False):
                     x1, y1, x2, y2 = map(int, d['box'])
-                    gray_color = (128, 128, 128)
-                    cv2.rectangle(final_img, (x1, y1), (x2, y2), gray_color, 1)
-                    draw_outline_text(final_img, f"Unmatched: {d['label']}", (x1, y1 - 5), gray_color, font_scale=0.4)
+                    
+                    unmatched_val = "N/A"
+                    label_up = d['label'].upper()
+                    
+                    # Read values for Unmatched objects as per display.md requirements
+                    if label_up.startswith("AG"):
+                        dummy_pt = {'min_value': 0, 'max_value': 100, 'normal_min_value': 0, 'normal_max_value': 100}
+                        val_num, _, _ = evaluate_gauge_reading(d, dummy_pt)
+                        try:
+                            unmatched_val = str(round(float(val_num), 2))
+                        except (ValueError, TypeError):
+                            unmatched_val = str(val_num)
+                        if d.get('source') == 'Pose' and 'keypoints' in d:
+                            for i, kp in enumerate(d['keypoints']):
+                                if len(kp) >= 3 and kp[2] > 0.25:
+                                    cv2.circle(final_img, (int(kp[0]), int(kp[1])), 4, (0,0,255) if i in [2,4] else (255,0,0), -1)
+                                    
+                    elif label_up.startswith("DG") or "DIGITAL" in label_up:
+                        h, w = img.shape[:2]
+                        pad = 10
+                        crop = img[max(0, y1-pad):min(h, y2+pad), max(0, x1-pad):min(w, x2+pad)]
+                        prompt = config.VLM_PROMPTS.get(d['label'], config.VLM_PROMPTS["DEFAULT"])
+                        if prompt == config.VLM_PROMPTS["DEFAULT"]:
+                            for key, p_text in config.VLM_PROMPTS.items():
+                                if key in d['label']:
+                                    prompt = p_text; break
+                        vlm_resp = self.dg_inspector.analyze_dg(crop, prompt, d['label'])
+                        unmatched_val = str(vlm_resp).replace("\n", " | ").strip() if vlm_resp else "No Read"
+                    
+                    elif "CLASS_" in label_up:
+                        vlm_resp = self.vlm_inspector.analyze_class(img_path, d['label'])
+                        unmatched_val = str(vlm_resp).replace("\n", " | ").strip() if vlm_resp else "No Read"
+
+                    # OpenCV Draw using visualizer logic
+                    draw_diagnosis_box(final_img, d['box'], None, f"Unmatched_{d['label']}", status="Unmatched", value=unmatched_val)
+                    
+                    # [Fix] 2026-03-16: Save unmatched item to DB so frontend shows its coordinates
+                    # Create a dummy "point" for saving
+                    class DummyPoint:
+                        def __init__(self, label, tsk, insp):
+                            self.inspection_point_type = f"Unmatched_{label}"
+                            self.facility_1 = "Unknown"
+                            self.facility_2 = "Unknown"
+                            self.min_value = 0
+                            self.max_value = 0
+                            self.normal_min_value = 0
+                            self.normal_max_value = 0
+                            self.site = tsk.site
+                            self.mission_name = tsk.mission_name
+                            self.inspection_name = insp
+                            self.id = 0
+                    
+                    dummy_point = DummyPoint(d['label'], task, insp_name)
+                    
+                    self._save_result(
+                        db, task.id, dummy_point, 
+                        "Unmatched", "FAIL", img_path, 
+                        d['box'], structured_res_path, photo_time
+                    )
 
             # 7. 통합 결과 이미지 저장
             draw_summary_table(final_img, summary_list)
@@ -513,7 +549,11 @@ class DiagnosisSystem:
             
             # [User Request] Show Result Window
             if self.visualize:
-                cv2.imshow("Inspection Result", final_img)
+                win_name = "AI Inspection Display"
+                cv2.namedWindow(win_name, cv2.WINDOW_AUTOSIZE)
+                win_title = f"[{task.site}] {task.mission_name} - {insp_name}"
+                cv2.setWindowTitle(win_name, win_title)
+                cv2.imshow(win_name, final_img)
                 cv2.waitKey(1)
 
             task.data_result_dir = saved_img_path

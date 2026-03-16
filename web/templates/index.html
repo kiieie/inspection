@@ -43,29 +43,52 @@
                 </div>
             </section>
 
-            <!-- Right: Data Result -->
+            <!-- Right/Bottom: Data Result -->
             <section class="data-section">
-                <h2>Inspection Results</h2>
-                <div class="table-wrapper">
-                    <table id="result-table">
-                        <thead>
-                            <tr>
-                                <th>Type</th>
-                                <th>Value</th>
-                                <th>Judgment</th>
-                                <th>Pos (L,T)</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Rows will be injected by JS -->
-                        </tbody>
-                    </table>
+                <!-- Left half (Expected Points) -->
+                <div class="data-pane expected-pane">
+                    <h2>Expected Points (DB)</h2>
+                    <div class="table-wrapper">
+                        <table id="expected-table">
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Facility</th>
+                                    <th>Criteria (Range)</th>
+                                    <th>점검결과(판독값)</th>
+                                    <th>정상범위 여부</th>
+                                    <th>Status</th>
+                                </tr>
+                            <tbody>
+                                <!-- Rows will be injected by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Right half (Detected Results) -->
+                <div class="data-pane detected-pane">
+                    <h2>Detected Results (AI)</h2>
+                    <div class="table-wrapper">
+                        <table id="result-table">
+                            <thead>
+                                <tr>
+                                    <th>Type</th>
+                                    <th>Value</th>
+                                    <th>Judgment</th>
+                                    <th>Pos (L,T)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Rows will be injected by JS -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
         </main>
     </div>
 
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js?v=20260316"></script>
 </body>
 
 </html>

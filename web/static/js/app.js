@@ -147,81 +147,228 @@ function renderResult(data) {
         imgEl.src = `${data.web_image_url}?t=${imgParams}`;
         imgEl.style.display = "block";
         document.getElementById("placeholder-text").style.display = "none";
-    } else {
-        // Fallback or error
     }
 
-    // Update Table
-    const tbody = document.querySelector("#result-table tbody");
-    tbody.innerHTML = "";
+    // 1. Render Expected Items
+    const expectedTbody = document.querySelector("#expected-table tbody");
+    if (expectedTbody) {
+        expectedTbody.innerHTML = "";
+        
+        const resultItems = data.items || [];
+        // Only classify as found if AI actually detected it (value is not 'Not Found')
+        const foundTypes = new Set(
+            resultItems
+                .filter(item => item.value !== "Not Found")
+                .map(item => item.type)
+        );
 
-    data.items.forEach(item => {
-        const tr = document.createElement("tr");
-
-        // Judgment Styling
-        const statusClass = item.status === "PASS" ? "status-pass" : "status-fail";
-
-        // Parse Pos
-        let posData = null;
-        try {
-            if (typeof item.pos === 'string') {
-                posData = JSON.parse(item.pos);
-            } else {
-                posData = item.pos;
+        const expectedItems = data.expected_items || [];
+        let expectedTypeCounts = {};
+        
+        expectedItems.forEach(item => {
+            const tr = document.createElement("tr");
+            expectedTypeCounts[item.type] = (expectedTypeCounts[item.type] || 0) + 1;
+            tr.dataset.type = item.type; // For cross-highlighting
+            tr.dataset.typeIdx = expectedTypeCounts[item.type]; // 1:1 matching
+            let rangeTxt = "";
+            if (item.min_value !== undefined && item.min_value !== null) {
+                rangeTxt = `${item.min_value} ~ ${item.max_value}`;
             }
-        } catch (e) {
-            console.warn("Invalid pos data", item.pos);
-        }
 
-        tr.innerHTML = `
-            <td>${item.type}</td>
-            <td class="font-mono">${item.value}</td>
-            <td><span class="badge ${statusClass}">${item.status}</span></td>
-            <td class="font-mono text-small">${Array.isArray(posData?.box) ? posData.box.join(", ") : "-"}</td> 
-        `;
+            const isFound = foundTypes.has(item.type);
+            const statusHtml = isFound ? `<span class="badge status-pass">Found</span>` : `<span class="badge status-fail" style="background-color: var(--danger-color); color: white;">Not Found</span>`;
 
-        // Click Event for Highlighting
-        tr.addEventListener("click", () => {
-            // Remove active class from others
-            document.querySelectorAll("#result-table tbody tr").forEach(r => r.classList.remove("active-row"));
-            tr.classList.add("active-row");
+            // Find matching result logic
+            let valText = "-";
+            let judgeHtml = "-";
 
-            if (posData && posData.box) {
-                highlightItem(posData.box);
-            } else {
-                hideHighlight();
+            if (isFound) {
+                 const matchCandidates = resultItems.filter(r => r.type === item.type && r.value !== "Not Found");
+                 const match = matchCandidates[expectedTypeCounts[item.type] - 1] || matchCandidates[0]; // fallback
+                 if (match) {
+                     valText = match.value || "-";
+                     const judgeText = match.status || "-";
+                     const judgeClass = (judgeText === "PASS" || judgeText.toLowerCase() === "ok") ? "status-pass" : (judgeText === "UNKNOWN" ? "status-unknown" : "status-fail");
+                     judgeHtml = `<span class="badge ${judgeClass}">${judgeText}</span>`;
+                 }
             }
+
+            tr.innerHTML = `
+                <td>${item.type}</td>
+                <td>${item.facility_1 || ""} - ${item.facility_2 || ""}</td>
+                <td class="font-mono">${rangeTxt}</td>
+                <td style="font-weight: bold; color: #ffeb3b;">${valText}</td>
+                <td>${judgeHtml}</td>
+                <td>${statusHtml}</td>
+            `;
+            
+            tr.addEventListener("click", () => {
+                selectRow(item.type, null, tr, "expected-table"); // Expected items usually don't have pos yet
+            });
+            expectedTbody.appendChild(tr);
         });
+    }
 
-        tbody.appendChild(tr);
-    });
+    // 2. Render Detected Results
+    const resTbody = document.querySelector("#result-table tbody");
+    if (resTbody) {
+        resTbody.innerHTML = "";
+        // Show all results including "Not Found" as requested by user
+        const resultItems = data.items || [];
+        let resultTypeCounts = {};
+        
+        resultItems.forEach(item => {
+            let posData = null;
+            try {
+                if (typeof item.pos === 'string') posData = JSON.parse(item.pos);
+                else posData = item.pos;
+            } catch (e) { console.warn("Invalid pos data", item.pos); }
+
+            // [display.md rule] Not Found items from DB should not be here
+            if (item.value === "Not Found" || (!posData?.box || posData.box.every(v => v === 0) && !item.type.startsWith("Unmatched_"))) {
+                return; // Skip NOT Found items completely
+            }
+
+            const tr = document.createElement("tr");
+            resultTypeCounts[item.type] = (resultTypeCounts[item.type] || 0) + 1;
+            tr.dataset.type = item.type; // For cross-highlighting
+            tr.dataset.typeIdx = resultTypeCounts[item.type]; // 1:1 matching
+
+            let displayType = item.type;
+            let displayStatus = item.status || "UNKNOWN";
+            let statusClass = item.status === "PASS" ? "status-pass" : (item.status === "FAIL" ? "status-fail" : "status-unknown");
+            
+            if (item.type.startsWith("Unmatched_")) {
+                displayType = item.type.replace("Unmatched_", "");
+                displayStatus = "Unmatched";
+                statusClass = "status-unmatched"; 
+            }
+
+            tr.dataset.box = JSON.stringify(posData?.box || null);
+
+            tr.innerHTML = `
+                <td>${displayType}</td>
+                <td class="font-mono">${item.value || ""}</td>
+                <td><span class="badge ${statusClass}">${displayStatus}</span></td>
+                <td class="font-mono text-small">${Array.isArray(posData?.box) ? posData.box.map(Math.round).join(", ") : "-"}</td> 
+            `;
+
+            tr.addEventListener("click", () => {
+                selectRow(item.type, posData?.box, tr, "result-table");
+            });
+
+            resTbody.appendChild(tr);
+        });
+    }
 
     // Reset highlight on new load
     hideHighlight();
 }
 
+// Handler for cross-highlighting logic
+function selectRow(type, box, clickedRow, sourceTableId) {
+    // 1. Clear active-row from all tables
+    document.querySelectorAll(".data-pane tbody tr").forEach(r => r.classList.remove("active-row"));
+
+    // 2. Add active-row to the clicked row
+    if (clickedRow) {
+        clickedRow.classList.add("active-row");
+    }
+
+    // 3. Find 1:1 matching row in the OTHER table using typeIdx
+    const otherTableId = sourceTableId === "expected-table" ? "result-table" : "expected-table";
+    const typeIdx = clickedRow ? clickedRow.dataset.typeIdx : 1;
+    let otherRow = document.querySelector(`#${otherTableId} tbody tr[data-type="${type}"][data-type-idx="${typeIdx}"]`);
+    
+    // [Fix] If missing in result-table, try to find an 'Unmatched_[type]' to show where AI actually found it
+    // But since typeIdx might not match (Unmatched items are separate), just find the first available Unmatched item
+    if (!otherRow && sourceTableId === "expected-table") {
+        otherRow = document.querySelector(`#result-table tbody tr[data-type="Unmatched_${type}"]`);
+    }
+
+    // [Fix] Workaround: The "Detected Results (AI)" table actually includes BOTH Matched and Missed Expected points!
+    // So if the user clicked "Not Found" in the result-table, it's actually an Expected Point that was missed.
+    // We should try to find an "Unmatched" row in the same result-table that has the actual coordinates!
+    if (sourceTableId === "result-table" && box && Array.isArray(box) && box.every(v => v === 0)) {
+        // This is a "Not Found" row clicked in the right table (0,0,0,0)
+        let unmatchedRow = document.querySelector(`#result-table tbody tr[data-type="Unmatched_${type}"]`);
+        
+        // [New Fallback] If exact label Unmatched is not found, fallback to ANY Unmatched detection
+        // so the user can see where the AI found *something* that couldn't be mapped.
+        if (!unmatchedRow) {
+            unmatchedRow = document.querySelector(`#result-table tbody tr[data-type^="Unmatched_"]`);
+        }
+
+        if (unmatchedRow) {
+            unmatchedRow.classList.add("active-row");
+            if (unmatchedRow.dataset.box && unmatchedRow.dataset.box !== "null") {
+                box = JSON.parse(unmatchedRow.dataset.box);
+            }
+        }
+    }
+
+    let finalBox = box;
+    
+    if (otherRow) {
+        otherRow.classList.add("active-row");
+        // if box is null but we clicked an expected item, read the box from the matched result row
+        if (!finalBox && otherRow.dataset.box && otherRow.dataset.box !== "null") {
+            finalBox = JSON.parse(otherRow.dataset.box);
+        }
+    }
+
+    // [Fix] If we clicked an 'Unmatched' row in result-table, try to highlight the original expected point
+    if (sourceTableId === "result-table" && type.startsWith("Unmatched_")) {
+        const originalType = type.replace("Unmatched_", "");
+        const fallbackExpectedRow = document.querySelector(`#expected-table tbody tr[data-type="${originalType}"]`);
+        if (fallbackExpectedRow) {
+            fallbackExpectedRow.classList.add("active-row");
+        }
+    }
+
+    if (finalBox && Array.isArray(finalBox) && finalBox.some(v => v !== 0)) {
+        highlightItem(finalBox);
+    } else {
+        hideHighlight();
+    }
+}
+
 function highlightItem(box) {
     const img = document.getElementById("result-image");
+    const container = img.parentElement;
     const highlight = document.getElementById("highlight-box");
 
-    if (!img.naturalWidth) {
-        return; // Image not loaded yet
-    }
+    if (!img.naturalWidth) return; // Image not loaded yet
 
     currentHighlightBox = box; // Store for resize
 
-    // Box Format: [x1, y1, x2, y2]
     const [x1, y1, x2, y2] = box;
     const w = x2 - x1;
     const h = y2 - y1;
 
-    // Calculate Scale
-    const scaleX = img.clientWidth / img.naturalWidth;
-    const scaleY = img.clientHeight / img.naturalHeight;
+    // Calculate actual render size of object-fit: contain within container
+    const imgRatio = img.naturalWidth / img.naturalHeight;
+    const containerRatio = container.clientWidth / container.clientHeight;
 
-    // Update Styles
-    const finalLeft = x1 * scaleX;
-    const finalTop = y1 * scaleY;
+    let renderWidth, renderHeight, offsetX = 0, offsetY = 0;
+
+    if (containerRatio > imgRatio) {
+        // Container is wider than image (pillarboxes on sides)
+        renderHeight = container.clientHeight;
+        renderWidth = renderHeight * imgRatio;
+        offsetX = (container.clientWidth - renderWidth) / 2;
+    } else {
+        // Container is taller than image (letterboxes on top/bottom)
+        renderWidth = container.clientWidth;
+        renderHeight = renderWidth / imgRatio;
+        offsetY = (container.clientHeight - renderHeight) / 2;
+    }
+
+    const scaleX = renderWidth / img.naturalWidth;
+    const scaleY = renderHeight / img.naturalHeight;
+
+    const finalLeft = offsetX + (x1 * scaleX);
+    const finalTop = offsetY + (y1 * scaleY);
     const finalWidth = w * scaleX;
     const finalHeight = h * scaleY;
 
@@ -232,6 +379,13 @@ function highlightItem(box) {
     highlight.style.display = "block";
 }
 
+// Ensure highlight adjusts on window resize
+window.addEventListener('resize', () => {
+    if (currentHighlightBox) {
+        highlightItem(currentHighlightBox);
+    }
+});
+
 function hideHighlight() {
     currentHighlightBox = null;
     const highlight = document.getElementById("highlight-box");
@@ -240,9 +394,6 @@ function hideHighlight() {
 
 function setLoading(isLoading) {
     const overlay = document.getElementById("loading-overlay");
-    if (isLoading) {
-        overlay.style.display = "flex";
-    } else {
-        overlay.style.display = "none";
-    }
+    if (isLoading) overlay.style.display = "flex";
+    else overlay.style.display = "none";
 }

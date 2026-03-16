@@ -108,8 +108,20 @@ body {
     /* 1/3 height */
     background-color: var(--bg-color);
     padding: 1rem;
-    overflow: auto;
+    overflow: hidden;
     position: relative;
+    display: flex;
+    gap: 1rem;
+}
+
+.data-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--card-bg);
+    border-radius: 8px;
+    padding: 1rem;
+    overflow: hidden;
 }
 
 /* Image Viewer */
@@ -150,13 +162,17 @@ body {
 }
 
 /* Table */
-.data-section h2 {
+.data-pane h2 {
     margin-top: 0;
     font-size: 1.1rem;
     margin-bottom: 1rem;
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 0.5rem;
 }
 
 .table-wrapper {
+    flex: 1;
+    overflow-y: auto;
     overflow-x: auto;
 }
 
@@ -218,16 +234,16 @@ th {
 }
 
 /* Clickable Table Rows */
-#result-table tbody tr {
+.data-pane tbody tr {
     cursor: pointer;
     transition: background-color 0.1s;
 }
 
-#result-table tbody tr:hover {
+.data-pane tbody tr:hover {
     background-color: rgba(255, 255, 255, 0.1);
 }
 
-#result-table tbody tr.active-row {
+.data-pane tbody tr.active-row {
     background-color: rgba(255, 255, 255, 0.2);
     border-left: 4px solid #FFFF00;
 }

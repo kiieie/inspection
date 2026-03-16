@@ -49,125 +49,66 @@ def get_image_file_from_dir(base_dir, mission, insp_name):
 
 class TaskController:
     def __init__(self):
-        self.df = None
+        self.tasks_list = []
         self.current_idx = 0
-        self.filtered_indices = []
-        self.col_mapping = {}
-        self.load_excel()
+        self.load_from_db()
 
-    def load_excel(self):
-        excel_path = config.EXCEL_FILE
-        if not os.path.exists(excel_path):
-            print(f"❌ Excel file not found: {excel_path}")
-            return
+    def load_from_db(self):
+        self.tasks_list = []
+        db = SessionLocal()
+        try:
+            query = db.query(
+                InspectionPoint.site, 
+                InspectionPoint.mission_name, 
+                InspectionPoint.inspection_name
+            ).distinct()
+            all_points = query.all()
             
-        self.df = pd.read_excel(excel_path, header=0)
-        
-        # normalization logic from push_task.py
-        self.df.columns = [str(c).strip().lower() for c in self.df.columns]
-        
-        # Column Mapping (Must match normalized names)
-        # push_task.py uses: 'site', 'mission_name', 'inspection_name'
-        self.col_mapping = {
-            'site': 'site',
-            'mission': 'mission_name',
-            'insp': 'inspection_name'
-        }
-        
-        req_cols = list(self.col_mapping.values())
-        missing = [c for c in req_cols if c not in self.df.columns]
-        if missing:
-            print(f"❌ Missing columns in Excel: {missing}")
-            print(f"   Available: {self.df.columns.tolist()}")
-            return
-        
-        # Filter Logic (Spot Cam)
-        filter_col = self.col_mapping['insp']
-        if filter_col:
-            # Drop duplicates based on Inspection Name (Task Unit)
-            unique_df = self.df.drop_duplicates(subset=[filter_col])
-            
-            # Use broader keyword or check matches
+            # Filter Logic (Spot Cam)
             keyword = "Spot Cam"
-            mask = unique_df[filter_col].astype(str).str.contains(keyword, case=False, na=False)
-            filtered = unique_df[mask]
+            filtered = [p for p in all_points if p.inspection_name and keyword.lower() in p.inspection_name.lower()]
             
-            if filtered.empty:
+            if not filtered:
                 print(f"⚠️ No tasks found matching '{keyword}'. Trying 'Spot'...")
                 keyword = "Spot"
-                mask = unique_df[filter_col].astype(str).str.contains(keyword, case=False, na=False)
-                filtered = unique_df[mask]
+                filtered = [p for p in all_points if p.inspection_name and keyword.lower() in p.inspection_name.lower()]
                 
-            self.filtered_indices = filtered.index.tolist()
-            print(f"✅ Loaded {len(self.filtered_indices)} tasks matching '{keyword}'")
+            self.tasks_list = filtered
+            print(f"✅ Loaded {len(self.tasks_list)} tasks from DB matching '{keyword}'")
             
-            if not self.filtered_indices:
-                print("❌ No tasks found even with fallback. Check Excel 'Inspection' column.")
-                print(f"   Available Columns: {self.df.columns.tolist()}")
-                print(f"   Sample Data: {unique_df[filter_col].head().tolist()}")
-        else:
-            self.filtered_indices = []
-            print("❌ 'Inspection' column not found in Excel.")
+            if not self.tasks_list:
+                print("❌ No tasks found in DB. Check InspectionPoint table.")
+        except Exception as e:
+            print(f"❌ Error loading from DB: {e}")
+        finally:
+            db.close()
 
     def get_current_task_info(self):
-        if not self.filtered_indices: return None
+        if not self.tasks_list: return None
         
-        idx = self.filtered_indices[self.current_idx]
-        row = self.df.loc[idx]
-        
-        site = str(row[self.col_mapping['site']]).strip()
-        mission = str(row[self.col_mapping['mission']]).strip()
-        insp_name = str(row[self.col_mapping['insp']]).strip()
+        task = self.tasks_list[self.current_idx]
         
         return {
             "index": self.current_idx,
-            "total": len(self.filtered_indices),
-            "site": site,
-            "mission": mission,
-            "inspection": insp_name
+            "total": len(self.tasks_list),
+            "site": task.site,
+            "mission": task.mission_name,
+            "inspection": task.inspection_name
         }
 
     def push_current_task(self):
-        if not self.filtered_indices: return False, "No tasks loaded"
+        if not self.tasks_list: return False, "No tasks loaded"
         
-        idx = self.filtered_indices[self.current_idx]
-        row = self.df.loc[idx]
-        return self._push_row_to_db(row)
+        task = self.tasks_list[self.current_idx]
+        return self._push_point_to_db(task.site, task.mission_name, task.inspection_name)
 
-    def _push_row_to_db(self, row):
-        site = str(row[self.col_mapping['site']]).strip()
-        mission = str(row[self.col_mapping['mission']]).strip()
-        insp_name = str(row[self.col_mapping['insp']]).strip()
-        
+    def _push_point_to_db(self, site, mission, insp_name):
         img_path = get_image_file_from_dir(config.BASE_DIR, mission, insp_name)
         if not img_path: return False, "Image not found"
 
         db = SessionLocal()
         try:
-            # 1. Master Info Check/Create
-            existing_point = db.query(InspectionPoint).filter(
-                InspectionPoint.mission_name == mission,
-                InspectionPoint.inspection_name == insp_name
-            ).first()
-
-            if not existing_point:
-                def get_val(key, default=None):
-                    v = row.get(key)
-                    return v if pd.notna(v) else default
-
-                new_point = InspectionPoint(
-                    site=site, mission_name=mission, inspection_name=insp_name,
-                    inspection_point_type=get_val("inspection_point_type"),
-                    facility_1=get_val("facility_1"), facility_2=get_val("facility_2"),
-                    model_type=get_val("model_type"), model_ver=get_val("model_ver"),
-                    min_value=get_val("min_value"), max_value=get_val("max_value"),
-                    normal_min_value=get_val("normal_min_value"), normal_max_value=get_val("normal_max_value"),
-                    comment=get_val("comment"), query=get_val("query"), report_name=get_val("report_items")
-                )
-                db.add(new_point)
-                db.commit()
-
-            # 2. Create Task
+            # Create Task Data based on existing InspectionPoint
             abs_path = str(Path(img_path).resolve())
             new_task = InspectionData(
                 site=site, mission_name=mission,
@@ -188,7 +129,7 @@ class TaskController:
             db.close()
 
     def next_task(self):
-        if self.current_idx < len(self.filtered_indices) - 1:
+        if self.current_idx < len(self.tasks_list) - 1:
             self.current_idx += 1
             return True
         return False
@@ -204,8 +145,16 @@ class TaskController:
         
         db = SessionLocal()
         try:
+            # 1. Detected Results
             results = db.query(InspectionResult).filter(
                 InspectionResult.data_result_dir == task.data_result_dir
+            ).all()
+
+            # 2. Expected Points
+            insp_name = task.inspection_name if hasattr(task, 'inspection_name') else task.data_result_dir
+            points = db.query(InspectionPoint).filter(
+                InspectionPoint.mission_name == task.mission_name,
+                InspectionPoint.inspection_name == insp_name
             ).all()
 
             # Construct response
@@ -213,8 +162,17 @@ class TaskController:
                 "task_id": task.id,
                 "site": task.site,
                 "mission": task.mission_name,
-                "inspection": task.inspection_name if hasattr(task, 'inspection_name') else task.data_result_dir,
+                "inspection": insp_name,
                 "image_path": task.data_result_dir, 
+                "expected_items": [
+                    {
+                        "type": p.inspection_point_type,
+                        "facility_1": p.facility_1,
+                        "facility_2": p.facility_2,
+                        "min_value": p.min_value,
+                        "max_value": p.max_value
+                    } for p in points
+                ],
                 "items": [
                     {
                         "type": r.inspection_point_type,

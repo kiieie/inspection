@@ -153,6 +153,11 @@ class VLMInspector:
             logger.error(f"❌ VLM Crop Error ({self.backend}): {e}")
             return "Error"
 
+    def analyze_class(self, image_path, target_type):
+        """Class_* 항목에 대해 전체 이미지 기반 VLM 분석 수행"""
+        logger.info(f"🔍 VLMInspector analyzing Class item: {target_type}")
+        return self.analyze(image_path, target_type)
+
     def analyze(self, image_path, inspection_type):
         """전체 이미지 또는 지정된 타입에 대한 VLM 질의 수행"""
         b64_image = self._encode_image(image_path)

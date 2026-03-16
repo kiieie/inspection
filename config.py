@@ -128,10 +128,10 @@ DB_CONFIG = {
 # }
 LABEL_MAP = {
     "A":["B","c","d","f","g","h"],
-    "AG_Ammeter01_A-0-300":["AG_Ammeter01_AC_NA","AG_Ammeter02_AC_NA""AG_Ammeter03_AC_NA","AG_Ammeter04_AC_NA"],
-    "AG_Ammeter02_A-0-30":["AG_Ammeter01_AC_NA","AG_Ammeter02_AC_NA""AG_Ammeter03_AC_NA","AG_Ammeter04_AC_NA"],
-    "AG_Ammeter03_A-0-100":["AG_Ammeter01_AC_NA","AG_Ammeter02_AC_NA""AG_Ammeter03_AC_NA","AG_Ammeter04_AC_NA"],
-    "AG_Ammeter04_A-0-100":["AG_Ammeter01_AC_NA","AG_Ammeter02_AC_NA""AG_Ammeter03_AC_NA","AG_Ammeter04_AC_NA"],
+    "AG_Ammeter01_A-0-300":["AG_Ammeter01_AC_NA","AG_Ammeter02_AC_NA","AG_Ammeter03_AC_NA","AG_Ammeter04_AC_NA"],
+    "AG_Ammeter02_A-0-30":["AG_Ammeter01_AC_NA","AG_Ammeter02_AC_NA","AG_Ammeter03_AC_NA","AG_Ammeter04_AC_NA"],
+    "AG_Ammeter03_A-0-100":["AG_Ammeter01_AC_NA","AG_Ammeter02_AC_NA","AG_Ammeter03_AC_NA","AG_Ammeter04_AC_NA"],
+    "AG_Ammeter04_A-0-100":["AG_Ammeter01_AC_NA","AG_Ammeter02_AC_NA","AG_Ammeter03_AC_NA","AG_Ammeter04_AC_NA"],
     "AG_Pressure_Fire-extinguisher":["AG_Pressure_Fire-extinguisher","AG_Pressure_Fire-extingusher","AG_Pressure_Fire-extingusher_NA","AG_Pressure_Fire-extinguisher_NA"],
     "AG_Pressure01_P-0-1":["AG_Pressure01_NA_NA","AG_Pressure02_NA_NA","AG_Pressure03_NA_NA","AG_Pressure04_NA_NA","AG_Pressure05_NA_NA","AG_Pressure06_NA_NA","AG_Pressure07_NA_NA"],
     "AG_Pressure02_P-0-1.5":["AG_Pressure01_NA_NA","AG_Pressure02_NA_NA","AG_Pressure03_NA_NA","AG_Pressure04_NA_NA","AG_Pressure05_NA_NA","AG_Pressure06_NA_NA","AG_Pressure07_NA_NA"],
@@ -169,7 +169,7 @@ LABEL_MAP = {
     "LED_DELD_PAB-on":["LED_Leakage_Green-on_ok","LED_DELD_run-on"],
     "LED_DMFR_run-on":["LED_DMFR_Run-on_ok","LED_DMFR_run-on_nok"],
     "LED_Controller":[""],
-    "LED_Green":["LED_Green_off_nok","LED_Green_off_ok","LED_Green_on_nok","LED_Green_on_ok"],
+    "LED_Green":["LED_Green_off","LED_Green_off_ok","LED_Green_on","LED_Green_on_ok"],
     "LED_Green_off":["LED_Green_off_nok","LED_Green_off_ok"],
     "LED_Green_on":["LED_Green_on_nok","LED_Green_on_ok"],
     "LED_Green-dot":["LED_Green-dot_off_nok","LED_Green-dot_off_ok","LED_Green-dot_on_nok","LED_Green-dot_on_ok"],
@@ -187,15 +187,15 @@ LABEL_MAP = {
     "LED_pd":["LED_PD_on_ok","LED_PD_on_nok","LED_PD_off_ok","LED_PD_off_nok"],
     "LED_PD_off":["LED_PD_off_ok","LED_PD_off_nok"],
     "LED_PD_on":["LED_PD_on_ok","LED_PD_on_nok"],
-    "LED_Red":["LED_Red_off_nok","LED_Red_off_ok","LED_Red_on_nok","LED_Red_on_ok"],
-    "LED_Red_off":["LED_Red_off_nok","LED_Red_off_ok"],
+    "LED_Red":["LED_Red_off","LED_Red_off_ok","LED_Red_on","LED_Red_on_ok"],
+    "LED_Red_off":["LED_Red_off"],
     "LED_Red_on":["LED_Red_on_nok","LED_Red_on_ok"],
     "LED_Red-dot":["LED_Red-dot_off_nok","LED_Red-dot_off_ok","LED_Red-dot_on_nok","LED_Red-dot_on_ok"],
     "LED_Red-dot_off":["LED_Red-dot_off_nok","LED_Red-dot_off_ok"],
     "LED_Red-dot_on":["LED_Red-dot_on_nok","LED_Red-dot_on_ok"],
     "LED_Yellow_off":["LED_Yellow_off_ok","LED_Yellow_off_nok"],
     "LED_Yellow_on":["LED_Yellow_on_ok","LED_Yellow_on_nok"],
-    "Sw_Nobe":["Sw_Nobe_Center_ok","Sw_Nobe_Center_nok", "Sw_Nobe_Left_ok","Sw_Nobe_Left_nok", "Sw_Nobe_Right_ok","Sw_Nobe_Right_nok"],
+    "Sw_Nobe":["Sw_Nobe_Center","Sw_Nobe_Left","Sw_Nobe_Right"],
     "Sw_Nobe_Center":["Sw_Nobe_Center_ok","Sw_Nobe_Center_nok"],
     "Sw_Nobe_Left":["Sw_Nobe_Left_ok","Sw_Nobe_Left_nok"],
     "Sw_Nobe_Right":["Sw_Nobe_Right_ok","Sw_Nobe_Right_nok"],
@@ -205,19 +205,19 @@ LABEL_MAP = {
     "Sw_Nobe-dot_Left_nok":["Sw_Nobe-dot_Left_nok"],
     "Sw_Nobe-dot_Right":["Sw_Nobe-dot_Right_ok","Sw_Nobe-dot_Right_nok"],
     "Sw_Nobe-dot_Right_nok":["Sw_Nobe-dot_Right_nok"],
-    "Sw_Pump":["Sw_Pump_Left_ok","Sw_Pump_Center_ok","Sw_Pump_Right_ok"],
-    "Sw_Pump_Center":["Sw_Pump_Center_ok"],
-    "Sw_Pump_Left":["Sw_Pump_Left_ok"],
-    "Sw_Pump_Right":["Sw_Pump_Right_ok"],
-    "Sw_Round_Center":["Sw_Round_Center_ok","Sw_Round_Center_nok"],
-    "Sw_Round_Left":["Sw_Round_Left_ok","Sw_Round_Left_nok"],
-    "Sw_Round_Right":["Sw_Round_Right_ok","Sw_Round_Right_nok"],
-    "Sw_Round-dot_Center":["Sw_Round-dot_Center_ok","Sw_Round-dot_Center_nok"],
-    "Sw_Round-dot_Left":["Sw_Round-dot_Left_ok","Sw_Round-dot_Left_nok"],
-    "Sw_Round-dot_Right":["Sw_Round-dot_Right_ok","Sw_Round-dot_Right_nok"],
+    "Sw_Pump":["Sw_Pump_Left","Sw_Pump_Center","Sw_Pump_Right"],
+    "Sw_Pump_Center":["Sw_Pump_Center"],
+    "Sw_Pump_Left":["Sw_Pump_Left"],
+    "Sw_Pump_Right":["Sw_Pump_Right"],
+    "Sw_Round_Center":["Sw_Round_Center"],
+    "Sw_Round_Left":["Sw_Round_Left"],
+    "Sw_Round_Right":["Sw_Round_Right"],
+    "Sw_Round-dot_Center":["Sw_Round-dot_Center"],
+    "Sw_Round-dot_Left":["Sw_Round-dot_Left"],
+    "Sw_Round-dot_Right":["Sw_Round-dot_Right"],
     "Sw_Valve_Closed":["Valve_Valve_Closed_ok","Valve_Valve_Opened_ok"],
     "Sw_Valve_Opened":["Valve_Valve_Closed_ok","Valve_Valve_Opened_ok"],
-    "Sw_Valve":["Valve_Valve_Closed_ok","Valve_Valve_Opened_ok"],
+    "Sw_Valve":["Sw_Valve_Closed","Sw_Valve_Opened"],
     "Class_C-Duct_Clean":["Class_C-Duct_Clean"],
     "Class_Clean":["Class_Clean"],
     "Class_Outlet":["Class_Outlet"],
@@ -253,6 +253,23 @@ VLM_CONFIG = {
     "trtllm": {
         "model_urls": {
             "4b": "http://10.52.194.208:18080/qwen3_vl/4b/infer",
+            "8b": "http://10.52.194.208:18080/qwen3_vl/8b/infer"
+        },
+        "default_model": "8b"
+    }
+}
+
+# [DG VLM Settings] - DG_* 전용 VLM 설정
+DG_VLM_CONFIG = {
+    "use_backend": "ollama",
+    "ollama": {
+        "api_url": "http://localhost:11434/api/generate",
+        "model": "qwen3-vl:8b",
+        "stream": False,
+        "temperature": 0.0 # DG의 경우 더 정확한 값을 위해 0.0 권장
+    },
+    "trtllm": {
+        "model_urls": {
             "8b": "http://10.52.194.208:18080/qwen3_vl/8b/infer"
         },
         "default_model": "8b"
@@ -300,19 +317,19 @@ VLM_PROMPTS = {
     # 3. Complex Meters
     # 3. Complex Meters
     # "DG_TR-temp": "1 lines only. Fixed format. No explanation. Red numbers. 1) PEAK ; 2) Temp. Controller",
-    "DG_TR-temp": "Read PEAK and Temp. Controller numbers. Output format: (PEAK, Temp). Example: (37|26.5). Separator: Pipe (|). No other text.",
+    "DG_TR-temp": "Read the actual PEAK and Temp. Controller numbers from the image. Output format: (PEAK|Temp). Format Example: (999|99.9). Do not copy the example, read the real values. No other text.",
     # "DG_Digital-Integrated-Meter": "1 lines only. Fixed format. No explanation. number only. 1) Va ; 2) Ia ; 3) P ; 4) WH",
-    "DG_Digital-Integrated-Meter": "Read Va, Ia, P, WH values. Output format: (Va, Ia, P, WH). Example: (220|10|50|1000). Separator: Pipe (|). No other text.",
+    "DG_Digital-Integrated-Meter": "Read the actual Va, Ia, P, WH values from the image. Output format: (Va|Ia|P|WH). Format Example: (999|99|99|9999). Do not copy the example, read the real values. No other text.",
     # "DG_GIMAC-DC": "1 lines only. Fixed format. No explanation. Numbers only. 1) Top ; 2) Middle ; 3) Bottom",
-    "DG_GIMAC-DC": "Read Top, Middle, Bottom numbers. Output format: (Top, Middle, Bottom). Example: (220|60|120). Separator: Pipe (|). No other text.",
+    "DG_GIMAC-DC": "Read the actual Top, Middle, Bottom numbers from the image. Output format: (Top|Middle|Bottom). Format Example: (999|99|999). Do not copy the example, read the real values. No other text.",
     # "DG_PB-max": "1 lines only. Fixed format. No explanation. Large numbers 4 columns only. if not detected NaN. 1) Col 1 ; 2) Col 2 ; 3) Col 3 ; 4) Col 4",
-    "DG_PB-max": "Read the 4 large numbers in columns. Output format: (Col1, Col2, Col3, Col4). Example: (100|200|300|400). Separator: Pipe (|). No other text.",
+    "DG_PB-max": "Read the actual 4 large numbers in columns from the image. Output format: (Col1|Col2|Col3|Col4). Format Example: (999|999|999|999). Do not copy the example, read the real values. No other text.",
     # "DG_Thermo-hygro": "1 lines only. Fixed format. No explanation. Numbers. if not detected NaN. 1) Temp  ; 2) Humidity",
-    "DG_Thermo-hygro": "Read Temp and Humidity. Output format: (Temp, Humidity). Example: (18.3|39). Separator: Pipe (|). No other text.",
+    "DG_Thermo-hygro": "Read the actual Temp and Humidity from the image. Output format: (Temp|Humidity). Format Example: (99.9|99). Do not copy the example, read the real values. No other text.",
     "DG_Digital-Meter": "Read Top, Middle, Bottom red numbers 1 lines only. No explanation. if not detected NaN. Output format: (Top| Middle| Bottom)",
     # "DG_Digital-Meter": "Read Top, Middle, Bottom numbers. Top number has 1 digits after decimal point. care about decimal point on Middle and Bottom numbers. all have 4 digits.  Output format: (Top| Middle| Bottom). Example: (xxxx|0.000|0.000). Separator: Pipe (|). No other text.",
     # "DG_Boost-pump": "1 lines only. Fixed format. No explanation. Numbers inside top circle.if not detected NaN. 1) Set Pressure  ;  2) Current Pressure",
-    "DG_Boost-pump": "Read Set Pressure and Current Pressure inside the circle. Output format: (Set, Current). Example: (5.9|5.7). Separator: Pipe (|). No other text.",
+    "DG_Boost-pump": "Read the actual Set Pressure and Current Pressure inside the circle from the image. Output format: (Set|Current). Format Example: (9.9|9.9). Do not copy the example, read the real values. No other text.",
     
     # 4. UPS Systems (Complex Layouts)
     # "DG_UPS-100KVA": """1 lines only. Fixed format. No explanation. Bypass is at top-left R S T Voltage(V). Input is at bottom-left R S T Voltage(V) and Current(A). Battery is at bottom-center Voltage(V) and below it Current(A). Output is at bottom-right R S T Voltage(V) and Current(A).1) Input Voltage(V) (R), (S), (T) ; Current(A) (R), (S), (T)  ; 2) Output Voltage(V) (R), (S), (T) ; Current(A) (R), (S), (T)  ;  3) Bypass Voltage(V) (R), (S), (T)  ; 4) Battery (V), (A)""",
