@@ -11,8 +11,13 @@ class VLMInspector:
         self.backend = self.config.get("use_backend", "ollama")
         
         if self.backend == "ollama":
-            self.api_url = self.config["ollama"]["api_url"]
-            self.model = self.config["ollama"]["model"]
+            if "ollama" in self.config:
+                self.api_url = self.config["ollama"]["api_url"]
+                self.model = self.config["ollama"]["model"]
+            else:
+                # Flat config structure lookup
+                self.api_url = self.config.get("api_url", "http://localhost:11434/api/generate")
+                self.model = self.config.get("model", "qwen3-vl:8b")
         else:
             # TRTLLM 기본 설정
             trt_cfg = self.config["trtllm"]
