@@ -180,16 +180,21 @@ def push_row_to_db(row, col_mapping):
         db.close()
 
 def getch():
-    """Reads a single character from stdin without requiring return."""
-    import tty, termios
-    fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
-    try:
-        tty.setraw(sys.stdin.fileno())
-        ch = sys.stdin.read(1)
-    finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-    return ch
+    """Reads a single character from stdin without requiring return (Cross-platform)."""
+    if os.name == 'nt':
+        import msvcrt
+        # msvcrt.getch() returns bytes, needs decoding
+        return msvcrt.getch().decode('utf-8')
+    else:
+        import tty, termios
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(sys.stdin.fileno())
+            ch = sys.stdin.read(1)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        return ch
 
 def interactive_mode():
     excel_path = config.EXCEL_FILE

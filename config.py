@@ -2,17 +2,17 @@
 import os
 
 # [Path Settings]
-# BASE_DIR = "/home/kiie/synology/Projects/R25IA04/Inspection_and_Diagnosis/Inspection_Raw_DATA_Dockerd/robot-control-system_inspection_data(docker X)"
-BASE_DIR = "/home/kiie/synology/Projects/R25IA04/Inspection_and_Diagnosis/"
-EXCEL_FILE = "/home/kiie/synology/Projects/R25IA04/Inspection_point_Labeling.xlsx"
-RESULT_BASE_DIR = "/home/kiie/projects/python/inspection/results"
+BASE_DIR = "C:\\users\\kepco\\Desktop\\project\\robot-control-system-docker\\data"
+# BASE_DIR = "/home/kiie/synology/Projects/R25IA04/Inspection_and_Diagnosis/"
+EXCEL_FILE = "C:\\Users\\kepco\\Desktop\\project\\inspection\\models\\Inspection_point_Labeling.xlsx"
+RESULT_BASE_DIR = "C:\\Users\\kepco\\Desktop\\project\\inspection\\results"
 # [Path Parser Settings]
 IMAGE_PATH_PREFIX = "inspection_data"
 
 # [Model Settings]
 MODEL_CONFIG = {
-    "classifier": "models/classifier/weights/best.pt",
-    "ag_pose": "models/ag_inspector/weights/best.pt"
+    "classifier": "C:\\users\\kepco\\Desktop\\project\\xanylabel\\custom_model\\DataCenter_v1\\weights\\best.pt",
+    "ag_pose": "C:\\users\\kepco\\Downloads\\ag_pose\\runs\\pose\\train2\\weights\\best.pt"
 }
 
 # # [VLM Settings - 설계서 5.1 반영]
