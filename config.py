@@ -8,11 +8,12 @@ EXCEL_FILE = "C:\\Users\\kepco\\Desktop\\project\\inspection\\models\\Inspection
 RESULT_BASE_DIR = "C:\\Users\\kepco\\Desktop\\project\\inspection\\results"
 # [Path Parser Settings]
 IMAGE_PATH_PREFIX = "inspection_data"
+EX_PATH_PREFIX = "DATA_FOR_EX"
 
 # [Model Settings]
 MODEL_CONFIG = {
-    "classifier": "C:\\users\\kepco\\Desktop\\project\\xanylabel\\custom_model\\DataCenter_v1\\weights\\best.pt",
-    "ag_pose": "C:\\users\\kepco\\Downloads\\ag_pose\\runs\\pose\\train2\\weights\\best.pt"
+    "classifier": os.path.join(os.path.dirname(__file__), "models", "classifier", "weights", "best.pt"),
+    "ag_pose": os.path.join(os.path.dirname(__file__), "models", "ag_inspector", "weights", "best.pt")
 }
 
 # # [VLM Settings - 설계서 5.1 반영]
@@ -304,7 +305,7 @@ VLM_PROMPTS = {
     
     # 1. Digital Gauges (Generic)
     # "DG_Air-Conditioner": "1 line only. Fixed format. No explanation. Number only. 1) Number",
-    "DG_Air-Conditioner": "Read the red number. Output format: (Number). Example: (24). No other text.",
+    "DG_Air-Conditioner": "Read the green number. Output format: (Number). Example: (24). No other text.",
     # "DG_Gen-Status": "1 line only. Fixed format. No explanation. Number only. 1) Coolant Temp",
     "DG_Gen-Status": "Read the Coolant Temp number. Output format: (Number). Example: (85). No other text.",
     # "DG_Electric-Water-Heater": "1 line only. Fixed format. No explanation. Red number only. 1) Number",

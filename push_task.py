@@ -791,36 +791,152 @@ def scan_auto():
                 for path in current_files:
                     f.write(path + "\n")
         else:
-            # print(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ No changes detected.")
-            pass
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] ✅ No changes detected.")
+            # pass
 
         # 4. 'q' 입력 대기 (60초 또는 즉시 종료)
         if wait_for_quit(60):
             break
 
 def wait_for_quit(timeout):
-    """60초 동안 'q' 입력을 감시합니다."""
-    import tty, termios
-    fd = sys.stdin.fileno()
-    if not os.isatty(fd):
-        time.sleep(timeout)
-        return False
-
-    old_settings = termios.tcgetattr(fd)
-    try:
-        tty.setcbreak(fd)
-        start_time = time.time()
+    """60초 동안 'q' 입력을 감시합니다 (Cross-platform)."""
+    start_time = time.time()
+    
+    if os.name == 'nt':
+        import msvcrt
         while time.time() - start_time < timeout:
-            # 0.1초 간격으로 스캔
-            rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
-            if rlist:
-                ch = sys.stdin.read(1)
-                if ch.lower() == 'q':
+            if msvcrt.kbhit():
+                # msvcrt.getch() returns bytes
+                ch = msvcrt.getch().decode('utf-8').lower()
+                if ch == 'q':
                     print("\n👋 Stop signal ('q') received. Exiting...")
                     return True
+            time.sleep(0.1)
+        return False
+        
+    else:
+        import tty, termios
+        fd = sys.stdin.fileno()
+        if not os.isatty(fd):
+            time.sleep(timeout)
+            return False
+
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setcbreak(fd)
+            while time.time() - start_time < timeout:
+                # 0.1초 간격으로 스캔
+                rlist, _, _ = select.select([sys.stdin], [], [], 0.1)
+                if rlist:
+                    ch = sys.stdin.read(1)
+                    if ch.lower() == 'q':
+                        print("\n👋 Stop signal ('q') received. Exiting...")
+                        return True
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        return False
+
+
+def scan_ex():
+    """
+    config.BASE_DIR / config.EX_PATH_PREFIX 하위의 파일들을 스캔하여
+    기존 히스토리와 상관없이 모두 DB에 존재하는지 확인하고,
+    없으면 추가합니다. (기존 --scanauto와 유사하지만 전체 스캔)
+    """
+    base_dir = config.BASE_DIR
+    prefix = getattr(config, 'EX_PATH_PREFIX', "DATA_FOR_EX")
+    scan_dir = os.path.join(base_dir, prefix)
+    
+    if not os.path.exists(scan_dir):
+        print(f"❌ Error: Scan directory not found: {scan_dir}")
+        return
+
+    print(f"🚀 Starting EX-Scan in: {scan_dir}")
+    print("   Scanning all files... (This might take a while)")
+
+    current_files = []
+    for root, dirs, files in os.walk(scan_dir):
+        for file in files:
+            if file.lower().endswith((".jpg", ".jpeg", ".png")):
+                full_path = os.path.join(root, file)
+                rel_path = os.path.relpath(full_path, base_dir)
+                current_files.append(rel_path)
+    
+    current_files.sort()
+    total_files = len(current_files)
+    print(f"✅ Found {total_files} images.")
+    
+    if total_files == 0:
+        return
+
+    db = SessionLocal()
+    added_count = 0
+    skipped_count = 0
+    
+    try:
+        for idx, rel_path in enumerate(current_files):
+            if (idx + 1) % 100 == 0:
+                print(f"   ... Processing {idx + 1}/{total_files} ...")
+
+            parts = rel_path.split(os.sep)
+            # EX_PATH_PREFIX가 있으면 제거하고 분석 (일반화)
+            if prefix and len(parts) > 0 and parts[0] == prefix:
+                parts = parts[1:]
+
+            # 예상 구조: Site / Mission / InspName / File
+            if len(parts) >= 4:
+                site, mission, insp_name = parts[0], parts[1], parts[2]
+                
+                # 1. 태스크(InspectionData) 존재 여부 확인 (중복 방지) -> 사용자 요청으로 SKIP 제거
+                # data_raw_dir는 rel_path (prefix 포함된 상대경로) 그대로 저장됨
+                # existing_task = db.query(InspectionData).filter(
+                #     InspectionData.data_raw_dir == rel_path
+                # ).first()
+                # 
+                # if existing_task:
+                #     skipped_count += 1
+                #     continue
+
+                # 2. 마스터(InspectionPoint) 확인 및 생성
+                exists_point = db.query(InspectionPoint).filter(
+                    InspectionPoint.site == site,
+                    InspectionPoint.mission_name == mission,
+                    InspectionPoint.inspection_name == insp_name
+                ).first()
+                
+                if not exists_point:
+                    new_point = InspectionPoint(
+                        site=site,
+                        mission_name=mission,
+                        inspection_name=insp_name,
+                        inspection_point_type="Detected",
+                        comment="Auto-detected via --ex"
+                    )
+                    db.add(new_point)
+                    db.flush() # ID 생성을 위해 flush
+
+                # 3. 태스크 생성
+                new_task = InspectionData(
+                    site=site,
+                    mission_name=mission,
+                    inspection_name=insp_name,
+                    inspection_time=datetime.now().replace(microsecond=0),
+                    data_raw_dir=rel_path,
+                    data_result_dir="",
+                    state=DiagnosisState.QUEUED
+                )
+                db.add(new_task)
+                added_count += 1
+        
+        db.commit()
+        print(f"✅ Complete. Added {added_count} new tasks. (Skipped {skipped_count} existing)")
+        
+    except Exception as e:
+        db.rollback()
+        print(f"❌ Error during scan_ex: {e}")
     finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-    return False
+        db.close()
+
 
 if __name__ == "__main__":
     if len(sys.argv) > 1:
@@ -828,6 +944,8 @@ if __name__ == "__main__":
             push_tasks_from_folder()
         elif sys.argv[1] == "--scanauto":
             scan_auto()
+        elif sys.argv[1] == "--ex":
+            scan_ex()
         else:
             keyword = sys.argv[1]
             push_task_from_excel(keyword)
