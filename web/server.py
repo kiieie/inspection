@@ -121,4 +121,4 @@ async def history_next(current_id: int):
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 if __name__ == "__main__":
-    uvicorn.run("server:app", host="0.0.0.0", port=38000, reload=True)
+    uvicorn.run("server:app", host="localhost", port=38000, reload=True)

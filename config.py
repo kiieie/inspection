@@ -4,6 +4,7 @@ import os
 # [Path Settings]
 BASE_DIR = "C:\\users\\kepco\\Desktop\\project\\robot-control-system-docker\\data"
 # BASE_DIR = "/home/kiie/synology/Projects/R25IA04/Inspection_and_Diagnosis/"
+# BASE_DIR = "Z:\\"
 EXCEL_FILE = "C:\\Users\\kepco\\Desktop\\project\\inspection\\models\\Inspection_point_Labeling.xlsx"
 RESULT_BASE_DIR = "C:\\Users\\kepco\\Desktop\\project\\inspection\\results"
 # [Path Parser Settings]
@@ -26,6 +27,7 @@ MODEL_CONFIG = {
 # SQLite DB 파일 및 모델 디렉토리 경로 설정
 DB_CONFIG = {
     "db_path": os.path.join(os.path.dirname(__file__), "database", "robot-control-system-db", "myapi.db"),
+    # "db_path": "Z:\\db\\myapi.db",
     "models_dir": os.path.join(os.path.dirname(__file__), "database", "robot-control-system-db"),
     "models_file": "models.py"
 }
