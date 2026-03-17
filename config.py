@@ -24,8 +24,8 @@ MODEL_CONFIG = {
 # [Database Settings - v2.5.0 추가]
 # SQLite DB 파일 및 모델 디렉토리 경로 설정
 DB_CONFIG = {
-    "db_path": os.path.join(os.path.dirname(__file__), "examples", "robot-control-system-db", "myapi.db"),
-    "models_dir": os.path.join(os.path.dirname(__file__), "examples", "robot-control-system-db"),
+    "db_path": os.path.join(os.path.dirname(__file__), "database", "robot-control-system-db", "myapi.db"),
+    "models_dir": os.path.join(os.path.dirname(__file__), "database", "robot-control-system-db"),
     "models_file": "models.py"
 }
 

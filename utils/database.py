@@ -6,7 +6,7 @@ import json
 
 # 프로젝트 루트 경로와 models.py가 있는 폴더를 sys.path에 추가 (임포트 오류 해결)
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-db_module_path = os.path.join(project_root, 'examples', 'robot-control-system-db')
+db_module_path = os.path.join(project_root, 'database', 'robot-control-system-db')
 sys.path.insert(0, db_module_path)
 sys.path.insert(0, project_root)
 
@@ -111,7 +111,7 @@ def pull_from_db(excel_path):
         df = pd.DataFrame(data)
         
         # 디렉토리가 없으면 생성
-        out_dir = os.path.dirname(os.path.dirname(os.path.abspath(excel_path)))
+        out_dir = os.path.dirname(os.path.abspath(excel_path))
         if out_dir and not os.path.exists(out_dir):
             try:
                 os.makedirs(out_dir, exist_ok=True)
