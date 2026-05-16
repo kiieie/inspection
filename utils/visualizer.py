@@ -1,6 +1,6 @@
 # [utils/visualizer.py] 고가독성 시각화 유틸리티
 import cv2
-import config
+from config.domain import COLORS, STATUS_MAPPING
 
 def draw_outline_text(img, text, pos, color, font_scale=0.5, thickness=1):
     """검정색 아웃라인이 적용된 텍스트 작성"""
@@ -51,11 +51,11 @@ def draw_diagnosis_box(img, box, excel_row, found_label, status="PASS", value=No
     # 1. 색상 및 두께 결정
     thickness = 2
     if status == "PASS":
-        box_color = config.COLORS.get("PASS", (0, 255, 0))
+        box_color = COLORS.get("PASS", (0, 255, 0))
     elif status == "FAIL":
-        box_color = config.COLORS.get("FAIL", (0, 0, 255))
+        box_color = COLORS.get("FAIL", (0, 0, 255))
     elif status == "UNKNOWN":
-        box_color = config.COLORS.get("UNKNOWN", (0, 255, 255))
+        box_color = COLORS.get("UNKNOWN", (0, 255, 255))
     elif status == "Unmatched":
         box_color = (128, 128, 128) # 회색
         thickness = 1
@@ -110,7 +110,7 @@ def draw_right_summary_table(img, summary_list):
     
     for item in summary_list:
         mark = "OK" if item['found'] else "MISS"
-        color = config.COLORS["PASS"] if item['found'] else config.COLORS["FAIL"]
+        color = COLORS["PASS"] if item['found'] else COLORS["FAIL"]
         
         # Facility 2와 Type을 조합하여 상세 표시
         fac = item.get('fac2', 'N/A')

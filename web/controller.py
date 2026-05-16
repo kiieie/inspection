@@ -9,11 +9,11 @@ import importlib.util
 # Setup Project Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(PROJECT_ROOT))
-import config
+from config.env import DB_MODELS_DIR, DB_MODELS_FILE, BASE_DIR
 
 # Dynamic Import of models
 if "models" not in sys.modules:
-    models_path = Path(config.DB_CONFIG['models_dir']) / config.DB_CONFIG['models_file']
+    models_path = DB_MODELS_DIR / DB_MODELS_FILE
     spec = importlib.util.spec_from_file_location("models", str(models_path))
     models = importlib.util.module_from_spec(spec)
     sys.modules["models"] = models
@@ -103,7 +103,7 @@ class TaskController:
         return self._push_point_to_db(task.site, task.mission_name, task.inspection_name)
 
     def _push_point_to_db(self, site, mission, insp_name):
-        img_path = get_image_file_from_dir(config.BASE_DIR, mission, insp_name)
+        img_path = get_image_file_from_dir(BASE_DIR, mission, insp_name)
         if not img_path: return False, "Image not found"
 
         db = SessionLocal()

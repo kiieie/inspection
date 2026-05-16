@@ -389,7 +389,7 @@ def push_tasks_from_folder():
     from datetime import datetime
     
     base_dir = BASE_DIR
-    prefix = getattr(config, 'IMAGE_PATH_PREFIX', "")
+    prefix = IMAGE_PATH_PREFIX
     
     if not os.path.exists(base_dir):
         print(f"❌ BASE_DIR not found: {base_dir}")
@@ -698,7 +698,7 @@ def scan_auto():
         
         # 2. 현재 파일 스캔
         base_dir = BASE_DIR
-        prefix = getattr(config, 'IMAGE_PATH_PREFIX', "")
+        prefix = IMAGE_PATH_PREFIX
         scan_dir = os.path.join(base_dir, prefix) if prefix else base_dir
         
         current_files = []
