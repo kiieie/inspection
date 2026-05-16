@@ -15,7 +15,7 @@ import sys
 BASE_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE_DIR.parent
 sys.path.append(str(PROJECT_ROOT))
-import config
+from config.env import RESULT_BASE_DIR
 
 app = FastAPI(title="Inspection Dashboard")
 
@@ -31,10 +31,10 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 templates = Jinja2Templates(directory=os.path.join(BASE_DIR, "templates"))
 
-# Result Images Mount (Mapping config.RESULT_BASE_DIR to /results)
-if not os.path.exists(config.RESULT_BASE_DIR):
-    os.makedirs(config.RESULT_BASE_DIR)
-app.mount("/results", StaticFiles(directory=config.RESULT_BASE_DIR), name="results")
+# Result Images Mount (Mapping RESULT_BASE_DIR to /results)
+if not os.path.exists(RESULT_BASE_DIR):
+    os.makedirs(RESULT_BASE_DIR)
+app.mount("/results", StaticFiles(directory=RESULT_BASE_DIR), name="results")
 
 # Initialize Controller
 controller = TaskController()
@@ -80,7 +80,7 @@ def process_result_response(res):
         return JSONResponse({"status": "waiting"})
         
     full_path = str(res['image_path'])
-    base_str = str(config.RESULT_BASE_DIR)
+    base_str = str(RESULT_BASE_DIR)
     
     full_path = os.path.normpath(full_path)
     base_str = os.path.normpath(base_str)

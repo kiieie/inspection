@@ -20,11 +20,11 @@ import select
 # 1. Setup Environment & Path
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.append(str(PROJECT_ROOT))
-import config
+from config.env import DB_MODELS_DIR, DB_MODELS_FILE, BASE_DIR, EXCEL_FILE, IMAGE_PATH_PREFIX, EX_PATH_PREFIX
 
 # 2. Dynamic Import of models
 if "models" not in sys.modules:
-    models_path = Path(config.DB_CONFIG['models_dir']) / config.DB_CONFIG['models_file']
+    models_path = DB_MODELS_DIR / DB_MODELS_FILE
     if not models_path.exists():
         print(f"❌ Error: Models file not found at {models_path}")
         sys.exit(1)
@@ -36,7 +36,7 @@ if "models" not in sys.modules:
 else:
     models = sys.modules["models"]
 
-from database import SessionLocal
+from database.session import SessionLocal
 from models import InspectionData, DiagnosisState, InspectionPoint
 
 def get_image_file_from_dir(base_dir, mission, insp_name):
@@ -108,7 +108,7 @@ def push_row_to_db(row, col_mapping):
     insp_name = str(row[col_mapping['insp']]).strip()
     
     # Resolve Image
-    img_path = get_image_file_from_dir(config.BASE_DIR, mission, insp_name)
+    img_path = get_image_file_from_dir(BASE_DIR, mission, insp_name)
     
     if not img_path:
         # print(f"   ⚠️ Image not found for: {insp_name}") # Verbose?
@@ -197,7 +197,7 @@ def getch():
         return ch
 
 def interactive_mode():
-    excel_path = config.EXCEL_FILE
+    excel_path = EXCEL_FILE
     if not os.path.exists(excel_path):
         print(f"❌ Excel file not found: {excel_path}")
         return
@@ -344,7 +344,7 @@ def push_task_from_excel(keyword=None):
     """
     Original single-shot search mode.
     """
-    excel_path = config.EXCEL_FILE
+    excel_path = EXCEL_FILE
     if not os.path.exists(excel_path): return
 
     try:
@@ -376,7 +376,7 @@ def push_task_from_excel(keyword=None):
 
 def push_tasks_from_folder():
     """
-    config.BASE_DIR 하위의 폴더들을 스캔하여 인터랙티브하게 태스크를 생성합니다.
+    BASE_DIR 하위의 폴더들을 스캔하여 인터랙티브하게 태스크를 생성합니다.
     폴더 구조: BASE_DIR / [PREFIX] / {site} / {mission} / {file_name}
     
     키 조작:
@@ -388,7 +388,7 @@ def push_tasks_from_folder():
     import os
     from datetime import datetime
     
-    base_dir = config.BASE_DIR
+    base_dir = BASE_DIR
     prefix = getattr(config, 'IMAGE_PATH_PREFIX', "")
     
     if not os.path.exists(base_dir):
@@ -597,7 +597,7 @@ def push_tasks_from_folder():
         
 def scan_auto():
     """
-    config.BASE_DIR 하위의 파일들을 스캔하여 기존 리스트와 비교하고,
+    BASE_DIR 하위의 파일들을 스캔하여 기존 리스트와 비교하고,
     변경사항이 있으면 리스트를 갱신하며 새 파일을 DB에 추가합니다.
     """
     config_dir = PROJECT_ROOT / "config"
@@ -611,7 +611,7 @@ def scan_auto():
             existing_files = {line.strip() for line in f if line.strip()}
     
     # 2. 현재 파일 스캔
-    base_dir = config.BASE_DIR
+    base_dir = BASE_DIR
     current_files = []
     print(f"📂 Scanning BASE_DIR for changes: {base_dir}")
     
@@ -679,7 +679,7 @@ def scan_auto():
 
 def scan_auto():
     """
-    config.BASE_DIR 하위의 파일들을 스캔하여 기존 리스트와 비교하고,
+    BASE_DIR 하위의 파일들을 스캔하여 기존 리스트와 비교하고,
     변경사항이 있으면 리스트를 갱신하며 새 파일을 DB에 추가합니다.
     (60초 주기로 반복 수행하며 'q'를 누르면 종료합니다)
     """
@@ -697,7 +697,7 @@ def scan_auto():
                 existing_files = {line.strip() for line in f if line.strip()}
         
         # 2. 현재 파일 스캔
-        base_dir = config.BASE_DIR
+        base_dir = BASE_DIR
         prefix = getattr(config, 'IMAGE_PATH_PREFIX', "")
         scan_dir = os.path.join(base_dir, prefix) if prefix else base_dir
         
@@ -728,7 +728,7 @@ def scan_auto():
                     for rel_path in sorted(list(new_files)):
                         parts = rel_path.split(os.sep)
                         # config.IMAGE_PATH_PREFIX가 설정되어 있고 경로의 시작이 prefix와 같다면 prefix를 건너뜁니다.
-                        prefix = getattr(config, 'IMAGE_PATH_PREFIX', "")
+                        prefix = IMAGE_PATH_PREFIX
                         if prefix and len(parts) > 0 and parts[0] == prefix:
                             parts = parts[1:]
 
@@ -839,12 +839,12 @@ def wait_for_quit(timeout):
 
 def scan_ex():
     """
-    config.BASE_DIR / config.EX_PATH_PREFIX 하위의 파일들을 스캔하여
+    BASE_DIR / config.EX_PATH_PREFIX 하위의 파일들을 스캔하여
     기존 히스토리와 상관없이 모두 DB에 존재하는지 확인하고,
     없으면 추가합니다. (기존 --scanauto와 유사하지만 전체 스캔)
     """
-    base_dir = config.BASE_DIR
-    prefix = getattr(config, 'EX_PATH_PREFIX', "DATA_FOR_EX")
+    base_dir = BASE_DIR
+    prefix = EX_PATH_PREFIX
     scan_dir = os.path.join(base_dir, prefix)
     
     if not os.path.exists(scan_dir):

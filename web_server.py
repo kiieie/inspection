@@ -14,8 +14,8 @@ from loguru import logger
 sys.path.append(str(Path(__file__).resolve().parent))
 
 # Import config and database setup
-import config
-from database import SessionLocal
+from config.env import BASE_DIR, RESULT_BASE_DIR
+from database.session import SessionLocal
 import models
 
 # Import IntegratedInspector
@@ -31,13 +31,10 @@ app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Mount Data Directories
-app.mount("/data", StaticFiles(directory=config.BASE_DIR), name="data")
+app.mount("/data", StaticFiles(directory=str(BASE_DIR)), name="data")
 
 # Mount Results Directory
-if not hasattr(config, 'RESULT_DIR'):
-     RESULT_DIR = os.path.join(os.path.dirname(__file__), "test_results") 
-else:
-     RESULT_DIR = config.RESULT_DIR
+RESULT_DIR = os.path.join(os.path.dirname(__file__), "test_results")
 
 if not os.path.exists(RESULT_DIR):
     os.makedirs(RESULT_DIR, exist_ok=True)
@@ -112,7 +109,7 @@ def get_latest_results(limit: int = 50):
                 "spatial_info": r.spatial_info if r.spatial_info else {},
                 
                 # Files
-                "raw_img_url": f"/data/{os.path.relpath(r.data_raw_dir, config.BASE_DIR)}" if r.data_raw_dir and os.path.exists(r.data_raw_dir) else None,
+                "raw_img_url": f"/data/{os.path.relpath(r.data_raw_dir, BASE_DIR)}" if r.data_raw_dir and os.path.exists(r.data_raw_dir) else None,
                 "res_img_url": f"/results/{os.path.basename(r.data_result_dir)}" if r.data_result_dir and os.path.exists(r.data_result_dir) else None
             }
             data.append(item)

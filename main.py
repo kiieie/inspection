@@ -22,13 +22,15 @@ from ultralytics import YOLO
 import argparse
 
 # 설정 및 유틸리티 로드
-import config
-from database import SessionLocal
-from utils.matching import sort_by_x_priority, is_type_compatible, evaluate_gauge_reading
+from config.env import BASE_DIR, RESULT_BASE_DIR, EXCEL_FILE, DB_MODELS_DIR, DB_MODELS_FILE
+from config.model import MODEL_CONFIG
+from config.domain import LABEL_MAP, VLM_PROMPTS
+from database.session import SessionLocal
+from core.matching import sort_by_x_priority, is_type_compatible, evaluate_gauge_reading
 from utils.visualizer import draw_diagnosis_box, draw_summary_table, draw_outline_text
 
 # [DB Setup] models.py 동적 임포트
-models_path = Path(config.DB_CONFIG['models_dir']) / config.DB_CONFIG['models_file']
+models_path = DB_MODELS_DIR / DB_MODELS_FILE
 spec = importlib.util.spec_from_file_location("models", str(models_path))
 models = importlib.util.module_from_spec(spec)
 sys.modules["models"] = models
@@ -45,13 +47,13 @@ from inspectors.vlm_inspector import VLMInspector
 
 class DiagnosisSystem:
     def __init__(self, visualize=True):
-        self.base_path = config.BASE_DIR
-        self.excel_path = config.EXCEL_FILE
+        self.base_path = BASE_DIR
+        self.excel_path = EXCEL_FILE
         self.visualize = visualize
-        
+
         try:
-            self.detector = YOLO(config.MODEL_CONFIG["classifier"])
-            self.ag_inspector = AGInspector(config.MODEL_CONFIG["ag_pose"])
+            self.detector = YOLO(str(MODEL_CONFIG["classifier"]))
+            self.ag_inspector = AGInspector(MODEL_CONFIG["ag_pose"])
             self.dg_inspector = DGInspector()
             self.sw_led_inspector = SW_LED_Inspector()
             self.vlm_inspector = VLMInspector()
@@ -109,8 +111,7 @@ class DiagnosisSystem:
                         unique_sub = f"task_{task_id}_{int(time.time())}"
                         
                         # [Fix] Use actual site/mission/inspection even if points are missing (Requested by User)
-                        # Previous: os.path.join(config.RESULT_BASE_DIR, "Unknown", "Unknown", "Unknown", unique_sub)
-                        target_dir = os.path.join(config.RESULT_BASE_DIR, task.site, mission_name, insp_name, unique_sub)
+                        target_dir = os.path.join(RESULT_BASE_DIR, task.site, mission_name, insp_name, unique_sub)
                         os.makedirs(target_dir, exist_ok=True)
                         
                         orig_name = os.path.splitext(os.path.basename(img_path))[0]
@@ -282,7 +283,7 @@ class DiagnosisSystem:
             orig_name = os.path.splitext(os.path.basename(img_path))[0]
             # [Fix] Create Unique Subdirectory per Task Run to prevent Result Mixing
             unique_sub = f"task_{task_id}_{int(time.time())}"
-            target_dir = os.path.join(config.RESULT_BASE_DIR, site, mission, insp, unique_sub)
+            target_dir = os.path.join(RESULT_BASE_DIR, site, mission, insp, unique_sub)
             os.makedirs(target_dir, exist_ok=True)
             
             structured_res_path = os.path.join(target_dir, f"{orig_name}_result.jpg")
@@ -292,7 +293,7 @@ class DiagnosisSystem:
                 matched_target = None
                 for target_type in expected_types:
                     # 1. LABEL_MAP 확인
-                    candidates = config.LABEL_MAP.get(target_type, [])
+                    candidates = LABEL_MAP.get(target_type, [])
                     if not isinstance(candidates, list): candidates = [candidates]
                     for cand in candidates:
                         norm_cand = str(cand).lower().replace("-", "").replace("_", "")
@@ -419,9 +420,9 @@ class DiagnosisSystem:
                             crop = img[max(0, y1-pad):min(h, y2+pad), max(0, x1-pad):min(w, x2+pad)]
                             
                             # 프롬프트 구성
-                            prompt = config.VLM_PROMPTS.get(target, config.VLM_PROMPTS["DEFAULT"])
-                            if prompt == config.VLM_PROMPTS["DEFAULT"]:
-                                for key, p_text in config.VLM_PROMPTS.items():
+                            prompt = VLM_PROMPTS.get(target, VLM_PROMPTS["DEFAULT"])
+                            if prompt == VLM_PROMPTS["DEFAULT"]:
+                                for key, p_text in VLM_PROMPTS.items():
                                     if key in target:
                                         prompt = p_text
                                         break
@@ -502,9 +503,9 @@ class DiagnosisSystem:
                         h, w = img.shape[:2]
                         pad = 10
                         crop = img[max(0, y1-pad):min(h, y2+pad), max(0, x1-pad):min(w, x2+pad)]
-                        prompt = config.VLM_PROMPTS.get(d['label'], config.VLM_PROMPTS["DEFAULT"])
-                        if prompt == config.VLM_PROMPTS["DEFAULT"]:
-                            for key, p_text in config.VLM_PROMPTS.items():
+                        prompt = VLM_PROMPTS.get(d['label'], VLM_PROMPTS["DEFAULT"])
+                        if prompt == VLM_PROMPTS["DEFAULT"]:
+                            for key, p_text in VLM_PROMPTS.items():
                                 if key in d['label']:
                                     prompt = p_text; break
                         vlm_resp = self.dg_inspector.analyze_dg(crop, prompt, d['label'])

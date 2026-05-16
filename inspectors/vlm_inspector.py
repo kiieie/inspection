@@ -2,12 +2,13 @@
 import requests
 import base64
 import json
-import config
 from loguru import logger
+from config.model import VLM_CONFIG
+from config.domain import VLM_PROMPTS
 
 class VLMInspector:
     def __init__(self):
-        self.config = config.VLM_CONFIG
+        self.config = VLM_CONFIG
         self.backend = self.config.get("use_backend", "ollama")
         
         if self.backend == "ollama":
@@ -170,14 +171,14 @@ class VLMInspector:
             return "Error: Image Load Failed"
 
         # 프롬프트 매핑 확인
-        prompt = config.VLM_PROMPTS.get(inspection_type)
+        prompt = VLM_PROMPTS.get(inspection_type)
         if not prompt:
-            prompt = next((v for k, v in config.VLM_PROMPTS.items() if inspection_type.startswith(k)), None)
+            prompt = next((v for k, v in VLM_PROMPTS.items() if inspection_type.startswith(k)), None)
         if not prompt:
             prompt = inspection_type
 
         if not prompt or len(prompt.strip()) == 0:
-            prompt = config.VLM_PROMPTS.get("DEFAULT")
+            prompt = VLM_PROMPTS.get("DEFAULT")
 
         try:
             logger.info(f"📡 VLM [{self.backend.upper()}] Request ({inspection_type})")

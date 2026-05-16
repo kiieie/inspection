@@ -6,7 +6,6 @@
 """
 import cv2
 from loguru import logger
-import config
 
 class SW_LED_Inspector:
     def __init__(self):

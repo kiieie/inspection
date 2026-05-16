@@ -11,15 +11,11 @@ import numpy as np
 import base64
 import requests
 from loguru import logger
-import config
+from config.model import DG_VLM_CONFIG, VLM_CONFIG
 
 class DGInspector:
-    """
-    디지털 게이지(Digital Gauge)의 이미지를 분석하는 클래스입니다.
-    VLM을 사용하여 게이지의 숫자를 읽어옵니다.
-    """
     def __init__(self):
-        self.config = getattr(config, "DG_VLM_CONFIG", config.VLM_CONFIG)
+        self.config = DG_VLM_CONFIG
         self.backend = self.config.get("use_backend", "ollama")
         
         if self.backend == "ollama":
